@@ -1,0 +1,38 @@
+# Config
+Module203105Name=Tarifs dégressifs
+Module203105Desc=Gestion de tarifs dégressifs par quantité
+PriceListSetup=Configuration du module tarifs dégressifs
+PRICELIST_CLONE_ON_CLONE_PRODUCT=Cloner les tarifs dégressifs lors d'un clonage de produit
+PRICELIST_SHOW_PRICES_TTC=Afficher les prix TTC
+PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING=Ne pas écraser le prix non égal à zéro lors de l'ajout de produit (/!\ le prix sera écrasé lors d'une mise à jour)
+PurgePriceList=Supprimer tous les tarifs dégressifs (/!\ cette action est irréversible)
+PurgeAll=Supprimer tous
+ConfirmPurgePriceList=Êtes-vous sûr de vouloir supprimer tous les tarifs dégressifs ? <b>/!\ Cette action est irréversible</b>
+AllPriceListRemoved=Tous les tarifs dégressifs ont été supprimés
+
+# Main
+PriceList=Tarif dégressif
+PriceLists=Tarifs dégressifs
+
+# Tab product
+AddPriceList=Ajouter un tarif
+NewPriceOffer=Nouveau tarif
+FromQtyLong=À partir de (quantité)
+FromQty=À partir de
+AllFieldIsRequired=Tous les champs sont requis
+FillPriceOrDiscountField=Remplir le champ prix ou remise
+PriceHT=Prix HT
+PriceTTC=Prix TTC
+AddedBy=Ajouté par
+PriceOrDiscountRate=Prix HT ou Taux de réduction
+
+PriceListId=Identifiant du tarif
+
+PriceListInsert=Tarif dégressif appliqué
+
+DeletePriceList=Suppression de prix
+ConfirmDeletePriceList=Êtes-vous sûr de vouloir supprimer ce(s) prix ?
+
+CanNotDeletePriceList=Impossible de supprimer les tarifs dégressifs : %s
+
+PriceListUpdate=MaJ Tarif dégressif

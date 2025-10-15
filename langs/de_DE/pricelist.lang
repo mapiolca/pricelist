@@ -1,0 +1,29 @@
+# Config
+Module203105Name=Produkte Staffelpreise
+Module203105Desc=Management für Produktsstaffelpreise 
+
+# Main
+PriceList=Staffelpreise
+PriceLists=Staffelpreise
+
+# Tab product
+AddPriceList=Tarif eingeben
+NewPriceOffer=Neuer Tarif erstellen
+FromQtyLong=ab Menge(Anzahl)
+FromQty=Ab
+AllFieldIsRequired=Alle felder sind Pflichtfeldeer
+FillPriceOrDiscountField=Füllen Sie das Feld Preis oder Rabatt aus
+PriceHT=Netto Preis
+AddedBy=Erstellt durch
+PriceOrDiscountRate=Preis HT oder Reduktionsrate
+
+PriceListId=Staffelpreise ID
+
+PriceListInsert=Staffelpreise erstellt
+
+DeletePriceList=Preis löschen
+ConfirmDeletePriceList=Sind Sie sicher diesen Preis zu löschen ?
+
+CanNotDeletePriceList=Staffelpreise kann nicht gelöscht werden : %s
+
+PriceListUpdate=Update Price list
