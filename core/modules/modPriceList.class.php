@@ -47,22 +47,26 @@ class modPriceList extends DolibarrModules
 
         // Id for module (must be unique).
         // Use here a free id (See in Home -> System information -> Dolibarr for list of used modules id).
-        $this->numero = 203105;
+		// EN: Align module identifiers with Les Métiers du Bâtiment. FR: Aligner les identifiants du module avec Les Métiers du Bâtiment.
+		$this->numero = 450008;
         // Key text used to identify module (for permissions, menus, etc...)
         $this->rights_class = 'pricelist';
 
         // Family can be 'crm','financial','hr','projects','products','ecm','technic','other'
         // It is used to group modules in module setup page
-        $this->family = "products";
+		// EN: Group the module under the Les Métiers du Bâtiment family. FR: Regrouper le module sous la famille Les Métiers du Bâtiment.
+		$this->family = "Les Métiers du Bâtiment";
         // Module label (no space allowed), used if translation string 'ModuleXXXName' not found (where XXX is value of numeric property 'numero' of module)
         $this->name = preg_replace('/^mod/i', '', get_class($this));
         // Module description, used if translation string 'ModuleXXXDesc' not found (where XXX is value of numeric property 'numero' of module)
-        $this->description = "";
+		// EN: Provide a bilingual module description. FR: Fournir une description bilingue du module.
+		$this->description = "Manage selling and cost price lists / Gestion des tarifs de vente et de revient";
 		// Possible values for version are: 'development', 'experimental', 'dolibarr' or version
 		$this->version = '2.0.0';
-        $this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
-        $this->editor_name= 'SM2i';
-        $this->editor_url= 'https://www.sm-2i.fr';
+		$this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
+		// EN: Reference the new editor information. FR: Référencer les nouvelles informations de l'éditeur.
+		$this->editor_name= 'Les Métiers du Bâtiment';
+		$this->editor_url= 'https://lesmetiersdubatiment.fr';
         // Key used in llx_const table to save module status enabled/disabled (where MYMODULE is value of property name of module in uppercase)
         $this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
         // Where to store the module in setup page (0=common,1=interface,2=others,3=very specific)
@@ -70,7 +74,8 @@ class modPriceList extends DolibarrModules
         // Name of image file used for this module.
         // If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
         // If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
-        $this->picto='generic';
+		// EN: Use the currency pictogram to match pricing features. FR: Utiliser le pictogramme monnaie pour refléter les fonctionnalités tarifaires.
+		$this->picto='currency';
 
         // Defined all module parts (triggers, login, substitutions, menus, css, etc...)
         // for default path (eg: /pricelist/core/xxxxx) (0=disable, 1=enable)
