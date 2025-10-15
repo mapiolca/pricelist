@@ -1,0 +1,38 @@
+# Config
+Module203105Name=Price Lists
+Module203105Desc=Management decreasing prices by quantity
+PriceListSetup=Price list module setup
+PRICELIST_CLONE_ON_CLONE_PRODUCT=Clone price list when cloning product
+PRICELIST_SHOW_PRICES_TTC=Show prices including tax
+PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING=Do not overwrite price not equal to zero when adding product (/!\ the price will be overwritten when updating)
+PurgePriceList=Remove all price list (/!\ this action is irreversible)
+PurgeAll=Remove all
+ConfirmPurgePriceList=Are you sure you want to remove all price list? <b>/!\ This action is irreversible.<b>
+AllPriceListRemoved=All price list have been removed
+
+# Main
+PriceList=Price list
+PriceLists=Price lists
+
+# Tab product
+AddPriceList=Add tariff
+NewPriceOffer=New tariff
+FromQtyLong=From (quantiy)
+FromQty=From
+AllFieldIsRequired=All field is required
+FillPriceOrDiscountField=Fill in the price or discount field
+PriceHT=Price HT
+PriceTTC=Price TTC
+AddedBy=Added by
+PriceOrDiscountRate=Price HT or reduction rate
+
+PriceListId=Price line ID
+
+PriceListInsert=Price list applied
+
+DeletePriceList=Delete price
+ConfirmDeletePriceList=Are you sure you want to delete this price(s) ?
+
+CanNotDeletePriceList=Can not delete price list : %s
+
+PriceListUpdate=Update Price list
