@@ -58,8 +58,8 @@ class modPriceList extends DolibarrModules
         $this->name = preg_replace('/^mod/i', '', get_class($this));
         // Module description, used if translation string 'ModuleXXXDesc' not found (where XXX is value of numeric property 'numero' of module)
         $this->description = "";
-        // Possible values for version are: 'development', 'experimental', 'dolibarr' or version
-        $this->version = '2.1.0';
+		// Possible values for version are: 'development', 'experimental', 'dolibarr' or version
+		$this->version = '2.0.0';
         $this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
         $this->editor_name= 'SM2i';
         $this->editor_url= 'https://www.sm-2i.fr';
