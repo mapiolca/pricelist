@@ -1,4 +1,19 @@
 <?php
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 if ($list !== null and count($list) > 0) {
     print '<form id="pricelistform" action="'.$_SERVER['PHP_SELF'].'" method="get">';
@@ -21,6 +36,7 @@ if ($list !== null and count($list) > 0) {
     print '<td align="right">'.$langs->trans("FromQty").'</td>';
     print '<td align="right">'.$langs->trans("PriceHT").'</td>';
     print '<td align="right">'.$langs->trans("Discount").'</td>';
+	print '<td align="right">'.$langs->trans("CostPriceHT").'</td>';
 
     if (!empty($conf->global->PRICELIST_SHOW_PRICES_TTC)) {
         print '<td align="right">'.$langs->trans("PriceTTC").'</td>';
@@ -72,6 +88,8 @@ if ($list !== null and count($list) > 0) {
         print '<td align="right">'.price($obj->from_qty).'</td>';
         print '<td align="right">'.($obj->price?price($obj->price):'-').'</td>';
         print '<td align="right">'.($obj->tx_discount?price($obj->tx_discount):'-').'</td>';
+		// Show cost price for quick comparison // Affiche le prix de revient pour comparaison rapide
+		print '<td align="right">'.($obj->cost_price?price($obj->cost_price):'-').'</td>';
 
         if (!empty($conf->global->PRICELIST_SHOW_PRICES_TTC)) {
             $pu = $obj->price ? $obj->price : $product->price;
@@ -169,6 +187,8 @@ if ($action == 'add') {
     print '<td colspan="2">';
     print '<input type="text" name="price" value="'.$price.'" placeholder="'.$langs->trans('Price').'">';
     print '<input type="text" name="tx_discount" value="'.$tx_discount.'" placeholder="'.$langs->trans('Discount').'">';
+		// Allow defining the cost price alongside sales data // Permet de définir le prix de revient avec les données de vente
+	print '<input type="text" name="cost_price" value="'.$cost_price.'" placeholder="'.$langs->trans('CostPrice').'">';
     print '</td>';
     print '</tr>';
 
