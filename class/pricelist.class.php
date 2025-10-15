@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2007-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2007-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2014	   Juanjo Menent		<jmenent@2byte.es>
  * Copyright (C) 2016-2021 Garcia MICHEL <garcia@soamichel.fr>
  *
@@ -46,6 +47,7 @@ class Pricelist extends CommonObject
     public $from_qty;
     public $price;
     public $tx_discount;
+	public $cost_price;
     public $user_creation_id;
 
     /**
@@ -69,12 +71,14 @@ class Pricelist extends CommonObject
     {
         global $conf, $langs;
 
-        if (
-            (empty($this->price) and empty($this->tx_discount)) or
-            (!empty($this->price) and !empty($this->tx_discount))
-        ) {
-            $this->error = $langs->trans('FillPriceOrDiscountField');
-            return -1;
+		$priceFilled = dol_strlen($this->price);
+		$discountFilled = dol_strlen($this->tx_discount);
+		$costFilled = dol_strlen($this->cost_price);
+
+		// Validate price, discount and cost coherence // Valide la cohérence du prix, de la remise et du prix de revient
+		if ((!$priceFilled and !$discountFilled and !$costFilled) or ($priceFilled and $discountFilled)) {
+			$this->error = $langs->trans('FillPriceOrDiscountField');
+			return -1;
         }
 
         // Insert request
@@ -86,6 +90,7 @@ class Pricelist extends CommonObject
         $sql.= "from_qty,";
         $sql.= "price,";
         $sql.= "tx_discount,";
+		$sql.= "cost_price,";
         $sql.= "fk_user_creation";
 
         $sql.= ") VALUES (";
@@ -96,6 +101,8 @@ class Pricelist extends CommonObject
         $sql.= " ".price2num($this->from_qty).",";
         $sql.= " ".($this->price?price2num($this->price):"null").",";
         $sql.= " ".($this->tx_discount?price2num($this->tx_discount):"null").",";
+		// Persist the defined cost price // Enregistre le prix de revient défini
+		$sql.= " ".($this->cost_price?price2num($this->cost_price):"null").",";
         $sql.= " ".$user->id;
 
         $sql.= ")";
@@ -107,7 +114,7 @@ class Pricelist extends CommonObject
         if (!$resql) {
             $this->db->rollback();
             $this->error = "Error ".$this->db->lasterror();
-            return -1;
+			return -1;
         }
 
         $this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.$this->table_element);
@@ -115,7 +122,7 @@ class Pricelist extends CommonObject
         $res = $this->call_trigger('PRICELIST_CREATE', $user);
         if ($res < 0) {
             $this->db->rollback();
-            return -1;
+			return -1;
         }
 
         $this->db->commit();
@@ -139,6 +146,7 @@ class Pricelist extends CommonObject
         $sql.= " t.from_qty,";
         $sql.= " t.price,";
         $sql.= " t.tx_discount,";
+        $sql.= " t.cost_price,";
         $sql.= " t.fk_user_creation";
 
         $sql.= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t WHERE t.rowid = ".$id;
@@ -156,6 +164,7 @@ class Pricelist extends CommonObject
                 $this->from_qty = $obj->from_qty;
                 $this->price = $obj->price;
                 $this->tx_discount = $obj->tx_discount;
+                $this->cost_price = $obj->cost_price;
                 $this->user_creation_id = $obj->fk_user_creation;
 
                 $this->db->free($resql);
@@ -189,6 +198,7 @@ class Pricelist extends CommonObject
         $sql.= " t.from_qty,";
         $sql.= " t.price,";
         $sql.= " t.tx_discount,";
+        $sql.= " t.cost_price,";
         $sql.= " t.fk_user_creation";
 
         $sql.= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
@@ -234,6 +244,7 @@ class Pricelist extends CommonObject
                     $object->from_qty = $obj->from_qty;
                     $object->price = $obj->price;
                     $object->tx_discount = $obj->tx_discount;
+                    $object->cost_price = $obj->cost_price;
                     $object->user_creation_id = $obj->fk_user_creation;
 
                     $list[$i] = $object;
@@ -258,12 +269,14 @@ class Pricelist extends CommonObject
     {
         global $conf, $langs;
 
-        if (
-            (empty($this->price) and empty($this->tx_discount)) or
-            (!empty($this->price) and !empty($this->tx_discount))
-        ) {
-            $this->error = $langs->trans('FillPriceOrDiscountField');
-            return -1;
+		$priceFilled = dol_strlen($this->price);
+		$discountFilled = dol_strlen($this->tx_discount);
+		$costFilled = dol_strlen($this->cost_price);
+
+		// Keep data coherence before update // Préserve la cohérence des données avant mise à jour
+		if ((!$priceFilled and !$discountFilled and !$costFilled) or ($priceFilled and $discountFilled)) {
+			$this->error = $langs->trans('FillPriceOrDiscountField');
+			return -1;
         }
 
         $error=0;
@@ -276,7 +289,9 @@ class Pricelist extends CommonObject
         $sql.= " fk_cat=".($this->catid?$this->catid:"null").",";
         $sql.= " from_qty=".price2num($this->from_qty).",";
         $sql.= " price=".($this->price?price2num($this->price):"null").",";
-        $sql.= " tx_discount=".($this->tx_discount?price2num($this->tx_discount):"null");
+		$sql.= " tx_discount=".($this->tx_discount?price2num($this->tx_discount):"null").",";
+		// Update cost price value // Met à jour la valeur du prix de revient
+		$sql.= " cost_price=".($this->cost_price?price2num($this->cost_price):"null");
 
         $sql.= " WHERE rowid=".$this->id;
 
@@ -365,13 +380,13 @@ class Pricelist extends CommonObject
         $res = $product->fetch($idproduct);
         if ($res <= 0) {
             $this->error = 'Failed to fetch product';
-            return -1;
+			return -1;
         }
 
         /**
          * tarif lié au client
          */
-        $sql = "SELECT price, tx_discount, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+        $sql = "SELECT price, tx_discount, cost_price, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
         $sql.= " WHERE fk_product = ".$idproduct." AND fk_soc = ".$soc->id." AND from_qty <= ".price2num($qty);
         $sql.= " ORDER BY from_qty DESC";
 
@@ -382,7 +397,7 @@ class Pricelist extends CommonObject
             }
         } else {
             $this->error="Error ".$this->db->lasterror();
-            return -1;
+			return -1;
         }
 
         /**
@@ -402,7 +417,7 @@ class Pricelist extends CommonObject
             }
             $in.= ")";
 
-            $sql = "SELECT price, tx_discount, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+            $sql = "SELECT price, tx_discount, cost_price, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
             $sql.= " WHERE fk_product = ".$idproduct." AND fk_cat IN ".$in." AND from_qty <= ".price2num($qty);
             $sql.= " ORDER BY from_qty DESC, price ASC";
 
@@ -413,14 +428,14 @@ class Pricelist extends CommonObject
                 }
             } else {
                 $this->error="Error ".$this->db->lasterror();
-                return -1;
+			return -1;
             }
         }
 
         /**
          * tarif du produit lié à aucun client
          */
-        $sql = "SELECT price, tx_discount, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+        $sql = "SELECT price, tx_discount, cost_price, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
         $sql.= " WHERE fk_product = ".$idproduct." AND (fk_soc IS NULL OR fk_soc < 1) AND (fk_cat IS NULL OR fk_cat < 1) AND from_qty <= ".price2num($qty);
         $sql.= " ORDER BY from_qty DESC";
 
@@ -431,7 +446,7 @@ class Pricelist extends CommonObject
             }
         } else {
             $this->error="Error ".$this->db->lasterror();
-            return -1;
+			return -1;
         }
 
         // no tarif found

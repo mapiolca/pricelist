@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2003      Rodolphe Quiedeville <rodolphe@quiedeville.org>
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2003      Rodolphe Quiedeville <rodolphe@quiedeville.org>
  * Copyright (C) 2004-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2005-2012 Regis Houssin        <regis.houssin@capnetworks.com>
  * Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
@@ -58,7 +59,7 @@ class modPriceList extends DolibarrModules
         // Module description, used if translation string 'ModuleXXXDesc' not found (where XXX is value of numeric property 'numero' of module)
         $this->description = "";
         // Possible values for version are: 'development', 'experimental', 'dolibarr' or version
-        $this->version = '1.9.1';
+        $this->version = '2.1.0';
         $this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
         $this->editor_name= 'SM2i';
         $this->editor_url= 'https://www.sm-2i.fr';
