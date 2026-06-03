@@ -1,9 +1,35 @@
 <?php
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 if ($action == 'add_confirm' and !GETPOST('cancel') and ($user->rights->service->creer or $user->rights->produit->creer)) {
-    if (empty($qty) or (empty($price) and empty($tx_discount))) {
-        setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
-    } elseif ($object->element != 'product' and empty($productid)) {
+	$priceFilled = dol_strlen($price);
+	$discountFilled = dol_strlen($tx_discount);
+	$costFilled = dol_strlen($cost_price);
+
+	// Ensure one monetary field is provided // S'assure qu'un champ monétaire est renseigné
+	if (empty($qty)) {
+		setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
+	} elseif (!$priceFilled and !$discountFilled and !$costFilled) {
+		// Require at least one pricing information // Exige au moins une information tarifaire
+		setEventMessage($langs->trans('FillPriceOrDiscountField'), 'errors');
+	} elseif ($priceFilled and $discountFilled) {
+		// Prevent using price and discount together // Empêche l'utilisation simultanée du prix et de la remise
+		setEventMessage($langs->trans('FillPriceOrDiscountField'), 'errors');
+	} elseif ($object->element != 'product' and empty($productid)) {
         setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
     } else {
         $pricelist->product_id = $object->element == 'product' ? $object->id : $productid;
@@ -27,6 +53,7 @@ if ($action == 'add_confirm' and !GETPOST('cancel') and ($user->rights->service-
         $pricelist->from_qty = $qty;
         $pricelist->price = $price;
         $pricelist->tx_discount = $tx_discount;
+        $pricelist->cost_price = $cost_price;
 
         $res = $pricelist->create($user);
         if ($res < 0) {
@@ -35,6 +62,7 @@ if ($action == 'add_confirm' and !GETPOST('cancel') and ($user->rights->service-
             $qty = '';
             $price = '';
             $tx_discount = '';
+            $cost_price = '';
         }
     }
 

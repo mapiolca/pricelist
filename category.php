@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +32,7 @@ $productid = GETPOST('productid');
 $qty = GETPOST('qty');
 $price = GETPOST('price');
 $tx_discount = GETPOST('tx_discount');
+$cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
 $lineid = GETPOST('lineid');
 $linesid = GETPOST('linesid', 'array');
 
