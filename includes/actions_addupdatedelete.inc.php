@@ -30,41 +30,67 @@ if ($action == 'add_confirm' and !GETPOST('cancel') and ($user->rights->service-
 		// Prevent using price and discount together // Empêche l'utilisation simultanée du prix et de la remise
 		setEventMessage($langs->trans('FillPriceOrDiscountField'), 'errors');
 	} elseif ($object->element != 'product' and empty($productid)) {
-        setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
-    } else {
-        $pricelist->product_id = $object->element == 'product' ? $object->id : $productid;
+		setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
+	} else {
+		$pricelist->product_id = $object->element == 'product' ? $object->id : $productid;
+		$targetCount = 0;
+		$pricelist->catid = null;
+		$pricelist->catid_propal = null;
+		$pricelist->catid_contract = null;
 
-        if ($object->element == 'societe') {
-            $pricelist->socid = $object->id;
-        } elseif (isset($socid) and $socid > 0) {
-            $pricelist->socid = $socid;
-        } else {
-            $pricelist->socid = null;
-        }
+		if ($object->element == 'societe') {
+			$pricelist->socid = $object->id;
+		} elseif (isset($socid) and $socid > 0) {
+			$pricelist->socid = $socid;
+		} else {
+			$pricelist->socid = null;
+		}
+		if (!empty($pricelist->socid)) {
+			$targetCount++;
+		}
 
-        if ($object->element == 'category') {
-            $pricelist->catid = $object->id;
-        } elseif (isset($catid) and $catid > 0 and empty($pricelist->socid)) {
-            $pricelist->catid = $catid;
-        } else {
-            $pricelist->catid = null;
-        }
+		if ($object->element == 'category' && (empty($type) || $type == 'customer')) {
+			$pricelist->catid = $object->id;
+		} elseif ($object->element == 'category' && $type == 'propal') {
+			$pricelist->catid_propal = $object->id;
+		} elseif ($object->element == 'category' && $type == 'contract') {
+			$pricelist->catid_contract = $object->id;
+		} else {
+			if (isset($catid) and $catid > 0) {
+				$pricelist->catid = $catid;
+			}
+			if (isset($catid_propal) and $catid_propal > 0) {
+				$pricelist->catid_propal = $catid_propal;
+			}
+			if (isset($catid_contract) and $catid_contract > 0) {
+				$pricelist->catid_contract = $catid_contract;
+			}
+		}
+		foreach (array($pricelist->catid, $pricelist->catid_propal, $pricelist->catid_contract) as $selectedCategory) {
+			if (!empty($selectedCategory)) {
+				$targetCount++;
+			}
+		}
 
-        $pricelist->from_qty = $qty;
-        $pricelist->price = $price;
-        $pricelist->tx_discount = $tx_discount;
-        $pricelist->cost_price = $cost_price;
+		if ($targetCount > 1) {
+			setEventMessage($langs->trans('PriceListSingleScopeRequired'), 'errors');
+		} else {
+			$pricelist->from_qty = $qty;
+			$pricelist->price = $price;
+			$pricelist->tx_discount = $tx_discount;
+			$pricelist->cost_price = $cost_price;
 
-        $res = $pricelist->create($user);
-        if ($res < 0) {
-            setEventMessages($pricelist->error, $pricelist->errors, 'errors');
-        } else {
-            $qty = '';
-            $price = '';
-            $tx_discount = '';
-            $cost_price = '';
-        }
-    }
+			$res = $pricelist->create($user);
+			if ($res < 0) {
+				setEventMessages($pricelist->error, $pricelist->errors, 'errors');
+			} else {
+				$qty = '';
+				$price = '';
+				$tx_discount = '';
+				$cost_price = '';
+			}
+		}
+	}
 
     $action = 'add';
 }
@@ -76,8 +102,8 @@ if ($action == 'confirm_delete_price' and $confirm == 'yes' and ($user->rights->
         setEventMessages($pricelist->error, $pricelist->errors, 'errors');
     }
 
-    header('Location: '.$_SERVER['PHP_SELF'].'?id='.$object->id);
-    exit;
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.$object->id.(isset($type) && $type ? '&type='.$type : ''));
+	exit;
 }
 
 if ($action == 'confirm_delete_prices' and $confirm == 'yes' and ($user->rights->produit->supprimer or $user->rights->service->supprimer)) {
@@ -89,6 +115,6 @@ if ($action == 'confirm_delete_prices' and $confirm == 'yes' and ($user->rights-
         }
     }
 
-    header('Location: '.$_SERVER['PHP_SELF'].'?id='.$object->id);
-    exit;
+	header('Location: '.$_SERVER['PHP_SELF'].'?id='.$object->id.(isset($type) && $type ? '&type='.$type : ''));
+	exit;
 }

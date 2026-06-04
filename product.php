@@ -20,6 +20,7 @@ require_once 'require.php';
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/product.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/price.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
 
@@ -29,6 +30,8 @@ $action = GETPOST('action');
 $confirm = GETPOST('confirm');
 $socid = GETPOST('socid');
 $catid = GETPOST('catid');
+$catid_propal = GETPOST('catid_propal');
+$catid_contract = GETPOST('catid_contract');
 $qty = GETPOST('qty');
 $price = GETPOST('price');
 $tx_discount = GETPOST('tx_discount');
@@ -66,7 +69,7 @@ include dol_buildpath('/pricelist/includes/actions_addupdatedelete.inc.php');
 /*
  * View
  */
-$langs->loadLangs(array('products', 'categories'));
+$langs->loadLangs(array('products', 'categories', 'pricelist@pricelist'));
 
 $form = new Form($db);
 

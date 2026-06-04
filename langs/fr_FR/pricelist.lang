@@ -2,6 +2,7 @@
 Module203105Name=Tarifs dégressifs
 Module203105Desc=Gestion de tarifs dégressifs par quantité
 PriceListSetup=Configuration du module tarifs dégressifs
+PriceListCompatibility=Compatibilité du module tarifs dégressifs
 PRICELIST_CLONE_ON_CLONE_PRODUCT=Cloner les tarifs dégressifs lors d'un clonage de produit
 PRICELIST_SHOW_PRICES_TTC=Afficher les prix TTC
 PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING=Ne pas écraser le prix non égal à zéro lors de l'ajout de produit (/!\ le prix sera écrasé lors d'une mise à jour)
@@ -27,6 +28,11 @@ PriceHT=Prix HT
 PriceTTC=Prix TTC
 AddedBy=Ajouté par
 PriceOrDiscountRate=Prix HT ou Taux de réduction
+PropalCategory=Catégorie de devis
+PropalCategoryId=Identifiant de catégorie de devis
+ContractCategory=Catégorie de contrat
+ContractCategoryId=Identifiant de catégorie de contrat
+PriceListSingleScopeRequired=Choisir un seul périmètre tarifaire : tiers, catégorie client, catégorie devis ou catégorie contrat
 
 PriceListId=Identifiant du tarif
 
@@ -38,3 +44,22 @@ ConfirmDeletePriceList=Êtes-vous sûr de vouloir supprimer ce(s) prix ?
 CanNotDeletePriceList=Impossible de supprimer les tarifs dégressifs : %s
 
 PriceListUpdate=MaJ Tarif dégressif
+
+# Compatibility
+DetectedPHPVersion=Version PHP détectée
+DetectedDolibarrVersion=Version Dolibarr détectée
+MinimumPHPVersion=Version PHP minimale supportée
+MinimumDolibarrVersion=Version Dolibarr minimale supportée
+CompatibilityFeatures=Fonctionnalités de compatibilité
+Feature=Fonctionnalité
+Status=Statut
+Reason=Motif
+Available=Disponible
+Unavailable=Indisponible
+PriceByCustomerCategory=Tarif par catégorie client
+PriceByCustomerCategoryDescription=Application d'un tarif selon la catégorie native du client.
+PriceByPropalCategory=Tarif par catégorie de devis
+PriceByPropalCategoryDescription=Application d'un tarif selon la catégorie native du devis.
+PriceByContractCategory=Tarif par catégorie de contrat
+PriceByContractCategoryDescription=Application d'un tarif selon la catégorie de contrat déclarée par hook.
+RequiresDolibarr20Php80=Nécessite Dolibarr 20 ou supérieur et PHP 8.0 ou supérieur.
