@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2007-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2007-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2014	   Juanjo Menent		<jmenent@2byte.es>
  * Copyright (C) 2016-2021 Garcia MICHEL <garcia@soamichel.fr>
  *
@@ -17,424 +18,767 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- *  \file       dev/skeletons/pricelist.class.php
- *  \ingroup    mymodule othermodule1 othermodule2
- *  \brief      This file is an example for a CRUD class file (Create/Read/Update/Delete)
- *				Initialy built by build_class_from_table on 2016-06-19 19:40
- */
-
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 
 /**
- *	Manage pricelist
+ * Manage price lists.
  */
-class Pricelist extends CommonObject
+class PriceList extends CommonObject
 {
-    public $db;
-    public $error;
-    public $errors=array();
-    public $element='pricelist';
-    public $table_element='pricelist';
+	public $db;
+	public $error;
+	public $errors = array();
+	public $element = 'pricelist';
+	public $table_element = 'pricelist';
+	public $ismultientitymanaged = 1;
 
-    public $id;
+	public $id;
+	public $entity;
+	public $product_id;
+	public $socid;
+	public $catid;
+	public $catid_propal;
+	public $catid_contract;
+	public $from_qty;
+	public $price;
+	public $tx_discount;
+	public $cost_price;
+	public $user_creation_id;
 
-    public $product_id;
-    public $socid;
-    public $catid;
-    public $from_qty;
-    public $price;
-    public $tx_discount;
-    public $user_creation_id;
+	/**
+	 * Constructor.
+	 *
+	 * @param DoliDb $db Database handler
+	 */
+	public function __construct($db)
+	{
+		$this->db = $db;
+		return 1;
+	}
 
-    /**
-     *  Constructor
-     *
-     *  @param	DoliDb		$db      Database handler
-     */
-    public function __construct($db)
-    {
-        $this->db = $db;
-        return 1;
-    }
+	/**
+	 * Create object into database.
+	 *
+	 * @param User $user User that creates
+	 * @return int <0 if KO, id of created object if OK
+	 */
+	public function create($user)
+	{
+		global $conf, $langs;
 
-    /**
-     *  Create object into database
-     *
-     *  @param	User	$user        User that creates
-     *  @return int      		   	 <0 if KO, Id of created object if OK
-     */
-    public function create($user)
-    {
-        global $conf, $langs;
+		if ($this->validatePriceListValues($langs) < 0) {
+			return -1;
+		}
 
-        if (
-            (empty($this->price) and empty($this->tx_discount)) or
-            (!empty($this->price) and !empty($this->tx_discount))
-        ) {
-            $this->error = $langs->trans('FillPriceOrDiscountField');
-            return -1;
-        }
+		$this->entity = !empty($this->entity) ? (int) $this->entity : (!empty($conf->entity) ? (int) $conf->entity : 1);
 
-        // Insert request
-        $sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
+		$sql .= "entity,";
+		$sql .= "fk_product,";
+		$sql .= "fk_soc,";
+		$sql .= "fk_cat,";
+		$sql .= "fk_cat_propal,";
+		$sql .= "fk_cat_contract,";
+		$sql .= "from_qty,";
+		$sql .= "price,";
+		$sql .= "tx_discount,";
+		$sql .= "cost_price,";
+		$sql .= "fk_user_creation";
+		$sql .= ") VALUES (";
+		$sql .= " ".((int) $this->entity).",";
+		$sql .= " ".((int) $this->product_id).",";
+		$sql .= " ".$this->formatNullableInt($this->socid).",";
+		$sql .= " ".$this->formatNullableInt($this->catid).",";
+		$sql .= " ".$this->formatNullableInt($this->catid_propal).",";
+		$sql .= " ".$this->formatNullableInt($this->catid_contract).",";
+		$sql .= " ".price2num($this->from_qty).",";
+		$sql .= " ".$this->formatNullablePrice($this->price).",";
+		$sql .= " ".$this->formatNullablePrice($this->tx_discount).",";
+		$sql .= " ".$this->formatNullablePrice($this->cost_price).",";
+		$sql .= " ".((int) $user->id);
+		$sql .= ")";
 
-        $sql.= "fk_product,";
-        $sql.= "fk_soc,";
-        $sql.= "fk_cat,";
-        $sql.= "from_qty,";
-        $sql.= "price,";
-        $sql.= "tx_discount,";
-        $sql.= "fk_user_creation";
+		$this->db->begin();
 
-        $sql.= ") VALUES (";
+		dol_syslog(__METHOD__, LOG_DEBUG);
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->db->rollback();
+			$this->error = "Error ".$this->db->lasterror();
+			return -1;
+		}
 
-        $sql.= " ".$this->product_id.",";
-        $sql.= " ".($this->socid?$this->socid:"null").",";
-        $sql.= " ".($this->catid?$this->catid:"null").",";
-        $sql.= " ".price2num($this->from_qty).",";
-        $sql.= " ".($this->price?price2num($this->price):"null").",";
-        $sql.= " ".($this->tx_discount?price2num($this->tx_discount):"null").",";
-        $sql.= " ".$user->id;
+		$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.$this->table_element);
 
-        $sql.= ")";
+		$res = $this->call_trigger('PRICELIST_CREATE', $user);
+		if ($res < 0) {
+			$this->db->rollback();
+			return -1;
+		}
 
-        $this->db->begin();
+		$this->db->commit();
+		return $this->id;
+	}
 
-        dol_syslog(__METHOD__, LOG_DEBUG);
-        $resql=$this->db->query($sql);
-        if (!$resql) {
-            $this->db->rollback();
-            $this->error = "Error ".$this->db->lasterror();
-            return -1;
-        }
+	/**
+	 * Load object in memory from the database.
+	 *
+	 * @param int $id Object id
+	 * @return int <0 if KO, >0 if OK
+	 */
+	public function fetch($id)
+	{
+		$sql = "SELECT";
+		$sql .= " t.rowid,";
+		$sql .= " t.entity,";
+		$sql .= " t.fk_product,";
+		$sql .= " t.fk_soc,";
+		$sql .= " t.fk_cat,";
+		$sql .= " t.fk_cat_propal,";
+		$sql .= " t.fk_cat_contract,";
+		$sql .= " t.from_qty,";
+		$sql .= " t.price,";
+		$sql .= " t.tx_discount,";
+		$sql .= " t.cost_price,";
+		$sql .= " t.fk_user_creation";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t WHERE t.rowid = ".((int) $id);
 
-        $this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.$this->table_element);
+		dol_syslog(get_class($this)."::fetch");
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			if ($this->db->num_rows($resql)) {
+				$obj = $this->db->fetch_object($resql);
+				$this->setVarsFromFetchObject($obj);
+				$this->db->free($resql);
+				return 1;
+			}
 
-        $res = $this->call_trigger('PRICELIST_CREATE', $user);
-        if ($res < 0) {
-            $this->db->rollback();
-            return -1;
-        }
+			$this->db->free($resql);
+			return 0;
+		}
 
-        $this->db->commit();
-        return $this->id;
-    }
+		$this->error = "Error ".$this->db->lasterror();
+		return -1;
+	}
 
-    /**
-     *  Load object in memory from the database
-     *
-     *  @param	int		$id    	Id object
-     *  @return int          	<0 if KO, >0 if OK
-     */
-    public function fetch($id)
-    {
-        global $langs;
-        $sql = "SELECT";
-        $sql.= " t.rowid,";
+	/**
+	 * Search list objects into database.
+	 *
+	 * @param int    $product_id   Product id
+	 * @param int    $socid        Thirdparty id
+	 * @param int    $catid        Category id
+	 * @param string $categorytype Category scope: customer, propal, contract
+	 * @param int    $entity       Entity id
+	 * @return ?array<int,PriceList> Null if error else array
+	 */
+	public function search($product_id = 0, $socid = 0, $catid = 0, $categorytype = 'customer', $entity = 0)
+	{
+		$entity = $this->resolveEntity(null, $entity);
+		$categoryfield = $this->getCategoryFieldForType($categorytype);
 
-        $sql.= " t.fk_product,";
-        $sql.= " t.fk_soc,";
-        $sql.= " t.from_qty,";
-        $sql.= " t.price,";
-        $sql.= " t.tx_discount,";
-        $sql.= " t.fk_user_creation";
+		$sql = "SELECT";
+		$sql .= " t.rowid,";
+		$sql .= " t.entity,";
+		$sql .= " t.fk_product,";
+		$sql .= " t.fk_soc,";
+		$sql .= " t.fk_cat,";
+		$sql .= " t.fk_cat_propal,";
+		$sql .= " t.fk_cat_contract,";
+		$sql .= " t.from_qty,";
+		$sql .= " t.price,";
+		$sql .= " t.tx_discount,";
+		$sql .= " t.cost_price,";
+		$sql .= " t.fk_user_creation";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
 
-        $sql.= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t WHERE t.rowid = ".$id;
+		$where = array("t.entity = ".((int) $entity));
+		if ($product_id) {
+			$where[] = "t.fk_product = ".((int) $product_id);
+		}
+		if ($socid) {
+			$where[] = "t.fk_soc = ".((int) $socid);
+		}
+		if ($catid) {
+			$where[] = "t.".$categoryfield." = ".((int) $catid);
+		}
+		if ($where) {
+			$sql .= " WHERE ".implode(" AND ", $where);
+		}
+		$sql .= " ORDER BY t.fk_product, t.fk_soc, t.fk_cat, t.fk_cat_propal, t.fk_cat_contract, t.from_qty";
 
-        dol_syslog(get_class($this)."::fetch");
-        $resql=$this->db->query($sql);
-        if ($resql) {
-            if ($this->db->num_rows($resql)) {
-                $obj = $this->db->fetch_object($resql);
+		dol_syslog(get_class($this)."::search");
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			$list = array();
+			while ($obj = $this->db->fetch_object($resql)) {
+				$object = new PriceList($this->db);
+				$object->setVarsFromFetchObject($obj);
+				$list[] = $object;
+			}
+			$this->db->free($resql);
+			return $list;
+		}
 
-                $this->id    = $obj->rowid;
+		$this->error = "Error ".$this->db->lasterror();
+		return null;
+	}
 
-                $this->product_id = $obj->fk_product;
-                $this->socid = $obj->fk_soc;
-                $this->from_qty = $obj->from_qty;
-                $this->price = $obj->price;
-                $this->tx_discount = $obj->tx_discount;
-                $this->user_creation_id = $obj->fk_user_creation;
+	/**
+	 * Update object into database.
+	 *
+	 * @param User $user User that modifies
+	 * @return int <0 if KO, >0 if OK
+	 */
+	public function update($user)
+	{
+		global $langs;
 
-                $this->db->free($resql);
+		if ($this->validatePriceListValues($langs) < 0) {
+			return -1;
+		}
 
-                return 1;
-            } else {
-                $this->db->free($resql);
-                return 0;
-            }
-        }
+		$error = 0;
+		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
+		$sql .= " fk_product=".((int) $this->product_id).",";
+		$sql .= " fk_soc=".$this->formatNullableInt($this->socid).",";
+		$sql .= " fk_cat=".$this->formatNullableInt($this->catid).",";
+		$sql .= " fk_cat_propal=".$this->formatNullableInt($this->catid_propal).",";
+		$sql .= " fk_cat_contract=".$this->formatNullableInt($this->catid_contract).",";
+		$sql .= " from_qty=".price2num($this->from_qty).",";
+		$sql .= " price=".$this->formatNullablePrice($this->price).",";
+		$sql .= " tx_discount=".$this->formatNullablePrice($this->tx_discount).",";
+		$sql .= " cost_price=".$this->formatNullablePrice($this->cost_price);
+		$sql .= " WHERE rowid=".((int) $this->id);
+		if (!empty($this->entity)) {
+			$sql .= " AND entity=".((int) $this->entity);
+		}
 
-        $this->error="Error ".$this->db->lasterror();
-        return -1;
-    }
+		$this->db->begin();
 
-    /**
-     * Search list object into database
-     *
-     * @param int product_id
-     * @param int socid
-     * @return null if error else array
-     */
-    public function search($product_id=0, $socid=0, $catid=0)
-    {
-        $sql = "SELECT";
-        $sql.= " t.rowid,";
+		dol_syslog(__METHOD__);
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$error++;
+			$this->errors[] = "Error ".$this->db->lasterror();
+		}
 
-        $sql.= " t.fk_product,";
-        $sql.= " t.fk_soc,";
-        $sql.= " t.fk_cat,";
-        $sql.= " t.from_qty,";
-        $sql.= " t.price,";
-        $sql.= " t.tx_discount,";
-        $sql.= " t.fk_user_creation";
+		if (!$error) {
+			$result = $this->call_trigger('PRICELIST_UPDATE', $user);
+			if ($result < 0) {
+				$error++;
+			}
+		}
 
-        $sql.= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+		if ($error) {
+			foreach ($this->errors as $errmsg) {
+				dol_syslog(__METHOD__." ".$errmsg, LOG_ERR);
+				$this->error .= ($this->error ? ', '.$errmsg : $errmsg);
+			}
+			$this->db->rollback();
+			return -1 * $error;
+		}
 
-        $where = array();
-        if ($product_id) {
-            $where[] = "fk_product = ".$product_id;
-        }
-        if ($socid) {
-            $where[] = "fk_soc = ".$socid;
-        }
-        if ($catid) {
-            $where[] = "fk_cat = ".$catid;
-        }
-        if ($where) {
-            $sql.= " WHERE ";
-            foreach ($where as $key => $w) {
-                $sql.= $w;
+		$this->db->commit();
+		return 1;
+	}
 
-                end($where);
-                if ($key != key($where)) {
-                    $sql.= " AND ";
-                }
-            }
-        }
-        $sql.= " ORDER BY fk_product, fk_soc, fk_cat, from_qty";
+	/**
+	 * Delete object in database.
+	 *
+	 * @param User $user User that deletes
+	 * @return int <0 if KO, >0 if OK
+	 */
+	public function delete($user)
+	{
+		$error = 0;
 
-        dol_syslog(get_class($this)."::fetch");
-        $resql=$this->db->query($sql);
-        if ($resql) {
-            $list = array();
-            $num = $this->db->num_rows($resql);
-            if ($num) {
-                $i = 0;
-                while ($i < $num) {
-                    $object = new PriceList($this->db);
-                    $obj = $this->db->fetch_object($resql);
+		$this->db->begin();
 
-                    $object->id = $obj->rowid;
-                    $object->product_id = $obj->fk_product;
-                    $object->socid = $obj->fk_soc;
-                    $object->catid = $obj->fk_cat;
-                    $object->from_qty = $obj->from_qty;
-                    $object->price = $obj->price;
-                    $object->tx_discount = $obj->tx_discount;
-                    $object->user_creation_id = $obj->fk_user_creation;
+		$sql = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_element;
+		$sql .= " WHERE rowid=".((int) $this->id);
+		if (!empty($this->entity)) {
+			$sql .= " AND entity=".((int) $this->entity);
+		}
 
-                    $list[$i] = $object;
-                    $i++;
-                }
-            }
+		dol_syslog(__METHOD__);
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$error++;
+			$this->errors[] = "Error ".$this->db->lasterror();
+		}
 
-            return $list;
-        }
+		if (!$error) {
+			$result = $this->call_trigger('PRICELIST_DELETE', $user);
+			if ($result < 0) {
+				$error++;
+			}
+		}
 
-        $this->error="Error ".$this->db->lasterror();
-        return null;
-    }
+		if ($error) {
+			foreach ($this->errors as $errmsg) {
+				dol_syslog(__METHOD__." ".$errmsg, LOG_ERR);
+				$this->error .= ($this->error ? ', '.$errmsg : $errmsg);
+			}
+			$this->db->rollback();
+			return -1 * $error;
+		}
 
-    /**
-     *  Update object into database
-     *
-     *  @param	User	$user        User that modifies
-     *  @return int     		   	 <0 if KO, >0 if OK
-     */
-    public function update($user)
-    {
-        global $conf, $langs;
+		$this->db->commit();
+		return 1;
+	}
 
-        if (
-            (empty($this->price) and empty($this->tx_discount)) or
-            (!empty($this->price) and !empty($this->tx_discount))
-        ) {
-            $this->error = $langs->trans('FillPriceOrDiscountField');
-            return -1;
-        }
+	/**
+	 * Search the price of a product for a customer, quantity and optional source object.
+	 *
+	 * Priority: source object category, exact customer, customer category, generic product price.
+	 *
+	 * @param int         $idproduct    Product id
+	 * @param Societe     $soc          Customer object
+	 * @param float|int   $qty          Quantity
+	 * @param CommonObject|null $sourceObject Propal or contract object
+	 * @return int|stdClass 0 if not found, -1 on error, price row when found
+	 */
+	public function get_price($idproduct, $soc, $qty, $sourceObject = null)
+	{
+		$product = new Product($this->db);
+		$res = $product->fetch((int) $idproduct);
+		if ($res <= 0) {
+			$this->error = 'Failed to fetch product';
+			return -1;
+		}
 
-        $error=0;
+		$entity = $this->resolveEntity($sourceObject);
+		$sourceCategory = $this->getSourceObjectCategoryDefinition($sourceObject);
+		if (!empty($sourceCategory['field']) && !empty($sourceCategory['ids'])) {
+			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, $sourceCategory['field'], $sourceCategory['ids'], $entity);
+			if ($result) {
+				return $result;
+			}
+			if ($result < 0) {
+				return -1;
+			}
+		}
 
-        // Update request
-        $sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
+		$socid = $this->getObjectId($soc);
+		if ($socid > 0) {
+			$result = $this->fetchBestPrice(
+				(int) $idproduct,
+				$qty,
+				array("t.fk_soc = ".$socid),
+				$entity,
+				"t.from_qty DESC",
+				"fk_soc"
+			);
+			if ($result) {
+				return $result;
+			}
+			if ($result < 0) {
+				return -1;
+			}
+		}
 
-        $sql.= " fk_product=".$this->product_id.",";
-        $sql.= " fk_soc=".($this->socid?$this->socid:"null").",";
-        $sql.= " fk_cat=".($this->catid?$this->catid:"null").",";
-        $sql.= " from_qty=".price2num($this->from_qty).",";
-        $sql.= " price=".($this->price?price2num($this->price):"null").",";
-        $sql.= " tx_discount=".($this->tx_discount?price2num($this->tx_discount):"null");
+		$customerCategories = $this->getCustomerCategoryIds($socid);
+		if (!empty($customerCategories)) {
+			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, 'fk_cat', $customerCategories, $entity);
+			if ($result) {
+				return $result;
+			}
+			if ($result < 0) {
+				return -1;
+			}
+		}
 
-        $sql.= " WHERE rowid=".$this->id;
+		$result = $this->fetchBestPrice(
+			(int) $idproduct,
+			$qty,
+			array(),
+			$entity,
+			"t.from_qty DESC"
+		);
+		if ($result) {
+			return $result;
+		}
+		if ($result < 0) {
+			return -1;
+		}
 
-        $this->db->begin();
+		return 0;
+	}
 
-        dol_syslog(__METHOD__);
-        $resql = $this->db->query($sql);
-        if (! $resql) {
-            $error++;
-            $this->errors[]="Error ".$this->db->lasterror();
-        }
+	/**
+	 * Fill object properties from a SQL row.
+	 *
+	 * @param stdClass $obj SQL row
+	 * @return void
+	 */
+	private function setVarsFromFetchObject($obj)
+	{
+		$this->id = $obj->rowid;
+		$this->entity = $obj->entity;
+		$this->product_id = $obj->fk_product;
+		$this->socid = $obj->fk_soc;
+		$this->catid = $obj->fk_cat;
+		$this->catid_propal = $obj->fk_cat_propal;
+		$this->catid_contract = $obj->fk_cat_contract;
+		$this->from_qty = $obj->from_qty;
+		$this->price = $obj->price;
+		$this->tx_discount = $obj->tx_discount;
+		$this->cost_price = $obj->cost_price;
+		$this->user_creation_id = $obj->fk_user_creation;
+	}
 
-        if (!$error) {
-            $result = $this->call_trigger('PRICELIST_UPDATE', $user);
-            if ($result < 0) {
-                $error++;
-            }
-        }
+	/**
+	 * Validate price list values before writing.
+	 *
+	 * @param Translate $langs Translation handler
+	 * @return int
+	 */
+	private function validatePriceListValues($langs)
+	{
+		$priceFilled = dol_strlen($this->price);
+		$discountFilled = dol_strlen($this->tx_discount);
+		$costFilled = dol_strlen($this->cost_price);
 
-        // Commit or rollback
-        if ($error) {
-            foreach ($this->errors as $errmsg) {
-                dol_syslog(__METHOD__." ".$errmsg, LOG_ERR);
-                $this->error.=($this->error?', '.$errmsg:$errmsg);
-            }
-            $this->db->rollback();
-            return -1*$error;
-        } else {
-            $this->db->commit();
-            return 1;
-        }
-    }
+		if ((!$priceFilled && !$discountFilled && !$costFilled) || ($priceFilled && $discountFilled)) {
+			$this->error = $langs->trans('FillPriceOrDiscountField');
+			return -1;
+		}
 
-    /**
-     *  Delete object in database
-     *
-     *	@param  User	$user        User that deletes
-     *  @return	int					 <0 if KO, >0 if OK
-     */
-    public function delete($user)
-    {
-        global $conf, $langs;
-        $error=0;
+		$targetCount = 0;
+		foreach (array($this->socid, $this->catid, $this->catid_propal, $this->catid_contract) as $target) {
+			if ((int) $target > 0) {
+				$targetCount++;
+			}
+		}
+		if ($targetCount > 1) {
+			$this->error = $langs->trans('PriceListSingleScopeRequired');
+			return -1;
+		}
 
-        $this->db->begin();
+		return 1;
+	}
 
-        $sql = "DELETE FROM ".MAIN_DB_PREFIX.$this->table_element;
-        $sql.= " WHERE rowid=".$this->id;
+	/**
+	 * Return SQL for a nullable integer.
+	 *
+	 * @param mixed $value Value
+	 * @return string
+	 */
+	private function formatNullableInt($value)
+	{
+		return ((int) $value > 0) ? (string) ((int) $value) : "null";
+	}
 
-        dol_syslog(__METHOD__);
-        $resql = $this->db->query($sql);
-        if (! $resql) {
-            $error++;
-            $this->errors[]="Error ".$this->db->lasterror();
-        }
+	/**
+	 * Return SQL for a nullable price-like value.
+	 *
+	 * @param mixed $value Value
+	 * @return string
+	 */
+	private function formatNullablePrice($value)
+	{
+		return dol_strlen($value) ? (string) price2num($value) : "null";
+	}
 
-        if (!$error) {
-            $result = $this->call_trigger('PRICELIST_DELETE', $user);
-            if ($result < 0) {
-                $error++;
-            }
-        }
+	/**
+	 * Resolve the entity used for price list queries.
+	 *
+	 * @param ?object $sourceObject Source object
+	 * @param int     $fallbackEntity Forced fallback entity
+	 * @return int
+	 */
+	private function resolveEntity($sourceObject = null, $fallbackEntity = 0)
+	{
+		global $conf;
 
-        // Commit or rollback
-        if ($error) {
-            foreach ($this->errors as $errmsg) {
-                dol_syslog(__METHOD__." ".$errmsg, LOG_ERR);
-                $this->error.=($this->error?', '.$errmsg:$errmsg);
-            }
-            $this->db->rollback();
-            return -1*$error;
-        } else {
-            $this->db->commit();
-            return 1;
-        }
-    }
+		if (is_object($sourceObject) && !empty($sourceObject->entity)) {
+			return (int) $sourceObject->entity;
+		}
+		if ($fallbackEntity > 0) {
+			return (int) $fallbackEntity;
+		}
+		if (!empty($conf->entity)) {
+			return (int) $conf->entity;
+		}
 
-    /**
-     * Recherche le tarif du produit pour le client donné par rapport à la quantité
-     *
-     * Recherche dans l'ordre : tarif lié au client, tarif le plus bas aux catégories du client, tarif du produit sans client
-     */
-    public function get_price($idproduct, $soc, $qty)
-    {
-        $product = new Product($this->db);
-        $res = $product->fetch($idproduct);
-        if ($res <= 0) {
-            $this->error = 'Failed to fetch product';
-            return -1;
-        }
+		return 1;
+	}
 
-        /**
-         * tarif lié au client
-         */
-        $sql = "SELECT price, tx_discount, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
-        $sql.= " WHERE fk_product = ".$idproduct." AND fk_soc = ".$soc->id." AND from_qty <= ".price2num($qty);
-        $sql.= " ORDER BY from_qty DESC";
+	/**
+	 * Return the category field for a given category type.
+	 *
+	 * @param string $categorytype Category type
+	 * @return string
+	 */
+	private function getCategoryFieldForType($categorytype)
+	{
+		if ($categorytype === 'propal') {
+			return 'fk_cat_propal';
+		}
+		if ($categorytype === 'contract' || $categorytype === 'contrat') {
+			return 'fk_cat_contract';
+		}
 
-        $resql=$this->db->query($sql);
-        if ($resql) {
-            if ($this->db->num_rows($resql)) {
-                return $this->db->fetch_object($resql);
-            }
-        } else {
-            $this->error="Error ".$this->db->lasterror();
-            return -1;
-        }
+		return 'fk_cat';
+	}
 
-        /**
-         * tarif le plus bas aux catégories du client
-         */
-        $objcat = new Categorie($this->db);
-        $cats = $objcat->containing($soc->id, 2);
+	/**
+	 * Return the numeric id of an object.
+	 *
+	 * @param ?object $object Object
+	 * @return int
+	 */
+	private function getObjectId($object)
+	{
+		if (!is_object($object)) {
+			return 0;
+		}
+		if (!empty($object->id)) {
+			return (int) $object->id;
+		}
+		if (!empty($object->rowid)) {
+			return (int) $object->rowid;
+		}
 
-        if (count($cats) > 0) {
-            $in = "(";
-            foreach ($cats as $key => $cat) {
-                $in.= $cat->id;
-                end($cats);
-                if ($key != key($cats)) {
-                    $in.= ",";
-                }
-            }
-            $in.= ")";
+		return 0;
+	}
 
-            $sql = "SELECT price, tx_discount, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
-            $sql.= " WHERE fk_product = ".$idproduct." AND fk_cat IN ".$in." AND from_qty <= ".price2num($qty);
-            $sql.= " ORDER BY from_qty DESC, price ASC";
+	/**
+	 * Return source object categories and target field.
+	 *
+	 * @param ?object $sourceObject Source object
+	 * @return array{field:string,ids:array<int,int>}
+	 */
+	private function getSourceObjectCategoryDefinition($sourceObject)
+	{
+		$definition = array('field' => '', 'ids' => array());
+		if (!is_object($sourceObject) || $this->getObjectId($sourceObject) <= 0) {
+			return $definition;
+		}
 
-            $resql=$this->db->query($sql);
-            if ($resql) {
-                if ($this->db->num_rows($resql)) {
-                    return $this->db->fetch_object($resql);
-                }
-            } else {
-                $this->error="Error ".$this->db->lasterror();
-                return -1;
-            }
-        }
+		$element = '';
+		if (!empty($sourceObject->element)) {
+			$element = (string) $sourceObject->element;
+		} elseif (!empty($sourceObject->table_element)) {
+			$element = (string) $sourceObject->table_element;
+		}
 
-        /**
-         * tarif du produit lié à aucun client
-         */
-        $sql = "SELECT price, tx_discount, from_qty FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
-        $sql.= " WHERE fk_product = ".$idproduct." AND (fk_soc IS NULL OR fk_soc < 1) AND (fk_cat IS NULL OR fk_cat < 1) AND from_qty <= ".price2num($qty);
-        $sql.= " ORDER BY from_qty DESC";
+		if ($element === 'propal') {
+			$definition['field'] = 'fk_cat_propal';
+			$definition['ids'] = $this->getObjectCategoryIds($this->getObjectId($sourceObject), 'categorie_propal', 'fk_propal', 23);
+		} elseif ($element === 'contrat' || $element === 'contract') {
+			$definition['field'] = 'fk_cat_contract';
+			$definition['ids'] = $this->getObjectCategoryIds($this->getObjectId($sourceObject), 'categorie_contract', 'fk_contract', 450022);
+		}
 
-        $resql=$this->db->query($sql);
-        if ($resql) {
-            if ($this->db->num_rows($resql)) {
-                return $this->db->fetch_object($resql);
-            }
-        } else {
-            $this->error="Error ".$this->db->lasterror();
-            return -1;
-        }
+		return $definition;
+	}
 
-        // no tarif found
-        return 0;
-    }
+	/**
+	 * Return category ids linked to an object through a category relation table.
+	 *
+	 * @param int    $objectId          Object id
+	 * @param string $tableElement      Link table without prefix
+	 * @param string $objectField       Object foreign key
+	 * @param int    $categoryType      Category type
+	 * @return array<int,int>
+	 */
+	private function getObjectCategoryIds($objectId, $tableElement, $objectField, $categoryType)
+	{
+		$ids = array();
+		if (!$this->tableExists($tableElement)) {
+			return $ids;
+		}
+
+		$sql = "SELECT ct.fk_categorie";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$tableElement." as ct";
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."categorie as c ON c.rowid = ct.fk_categorie";
+		$sql .= " WHERE ct.".$objectField." = ".((int) $objectId);
+		$sql .= " AND c.type = ".((int) $categoryType);
+		$sql .= " AND c.entity IN (".$this->getCategoryEntityScope().")";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = "Error ".$this->db->lasterror();
+			return $ids;
+		}
+
+		while ($obj = $this->db->fetch_object($resql)) {
+			$ids[] = (int) $obj->fk_categorie;
+		}
+		$this->db->free($resql);
+
+		return array_values(array_unique($ids));
+	}
+
+	/**
+	 * Return customer categories.
+	 *
+	 * @param int $socid Thirdparty id
+	 * @return array<int,int>
+	 */
+	private function getCustomerCategoryIds($socid)
+	{
+		if ($socid <= 0) {
+			return array();
+		}
+
+		$objcat = new Categorie($this->db);
+		$type = defined('Categorie::TYPE_CUSTOMER') ? Categorie::TYPE_CUSTOMER : 2;
+		$cats = $objcat->containing($socid, $type);
+		if (!is_array($cats) || empty($cats)) {
+			return array();
+		}
+
+		$ids = array();
+		foreach ($cats as $cat) {
+			if (!empty($cat->id)) {
+				$ids[] = (int) $cat->id;
+			}
+		}
+
+		return array_values(array_unique($ids));
+	}
+
+	/**
+	 * Fetch the best price matching a category field.
+	 *
+	 * @param int        $idproduct Product id
+	 * @param float|int  $qty       Quantity
+	 * @param string     $field     Category field
+	 * @param array<int> $ids       Category ids
+	 * @param int        $entity    Entity id
+	 * @return int|stdClass
+	 */
+	private function fetchBestPriceByCategory($idproduct, $qty, $field, $ids, $entity)
+	{
+		$ids = $this->normalizeIdList($ids);
+		if (empty($ids)) {
+			return 0;
+		}
+
+		return $this->fetchBestPrice(
+			$idproduct,
+			$qty,
+			array("t.".$field." IN (".implode(',', $ids).")"),
+			$entity,
+			"t.from_qty DESC, t.price ASC",
+			$field
+		);
+	}
+
+	/**
+	 * Fetch the best price for additional where clauses.
+	 *
+	 * @param int           $idproduct   Product id
+	 * @param float|int     $qty         Quantity
+	 * @param array<string> $where       Additional where clauses
+	 * @param int           $entity      Entity id
+	 * @param string        $order       SQL order
+	 * @param string        $exceptField Target field allowed to be filled
+	 * @return int|stdClass
+	 */
+	private function fetchBestPrice($idproduct, $qty, $where, $entity, $order, $exceptField = '')
+	{
+		$sql = "SELECT price, tx_discount, cost_price, from_qty";
+		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
+		$sql .= " WHERE t.entity = ".((int) $entity);
+		$sql .= " AND t.fk_product = ".((int) $idproduct);
+		$sql .= " AND t.from_qty <= ".price2num($qty);
+		foreach ($this->getEmptyTargetWhere($exceptField) as $emptyTargetWhere) {
+			$sql .= " AND ".$emptyTargetWhere;
+		}
+		foreach ($where as $wherePart) {
+			$sql .= " AND ".$wherePart;
+		}
+		$sql .= " ORDER BY ".$order;
+
+		$resql = $this->db->query($sql);
+		if ($resql) {
+			if ($this->db->num_rows($resql)) {
+				return $this->db->fetch_object($resql);
+			}
+
+			$this->db->free($resql);
+			return 0;
+		}
+
+		$this->error = "Error ".$this->db->lasterror();
+		return -1;
+	}
+
+	/**
+	 * Return target fields that must stay empty for a scope.
+	 *
+	 * @param string $exceptField Field allowed to be filled
+	 * @return array<string>
+	 */
+	private function getEmptyTargetWhere($exceptField = '')
+	{
+		$where = array();
+		foreach (array('fk_soc', 'fk_cat', 'fk_cat_propal', 'fk_cat_contract') as $field) {
+			if ($field === $exceptField) {
+				continue;
+			}
+			$where[] = "(t.".$field." IS NULL OR t.".$field." < 1)";
+		}
+
+		return $where;
+	}
+
+	/**
+	 * Normalize a list of integer ids.
+	 *
+	 * @param array<int,mixed> $ids Id list
+	 * @return array<int,int>
+	 */
+	private function normalizeIdList($ids)
+	{
+		$normalized = array();
+		foreach ($ids as $id) {
+			$id = (int) $id;
+			if ($id > 0) {
+				$normalized[] = $id;
+			}
+		}
+
+		return array_values(array_unique($normalized));
+	}
+
+	/**
+	 * Return category entity scope.
+	 *
+	 * @return string
+	 */
+	private function getCategoryEntityScope()
+	{
+		global $conf;
+
+		if (function_exists('getEntity')) {
+			return $this->db->sanitize(getEntity('category'));
+		}
+
+		return !empty($conf->entity) ? (string) ((int) $conf->entity) : '1';
+	}
+
+	/**
+	 * Check if a table exists.
+	 *
+	 * @param string $tableElement Table without prefix
+	 * @return bool
+	 */
+	private function tableExists($tableElement)
+	{
+		$sql = "SHOW TABLES LIKE '".$this->db->escape(MAIN_DB_PREFIX.$tableElement)."'";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			return false;
+		}
+		$exists = ($this->db->num_rows($resql) > 0);
+		$this->db->free($resql);
+
+		return $exists;
+	}
 }

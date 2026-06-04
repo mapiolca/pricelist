@@ -40,7 +40,7 @@ $arrayofparameters = array(
 );
 
 if ($action == 'confirm_purge') {
-    $resql = $db->query("DELETE FROM ".MAIN_DB_PREFIX.'pricelist');
+    $resql = $db->query("DELETE FROM ".MAIN_DB_PREFIX.'pricelist WHERE entity = '.((int) $conf->entity));
     if ($resql) {
         setEventMessage($langs->trans('AllPriceListRemoved'));
     } else {

@@ -1,5 +1,7 @@
 <?php
-/* Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
+/*
+ * Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,356 +19,599 @@
 
 dol_include_once('/pricelist/class/pricelist.class.php');
 
+/**
+ * Hooks for pricelist.
+ */
 class ActionsPriceList
 {
-    protected $db;
+	public $db;
+	public $error = '';
+	public $errors = array();
+	public $results = array();
+	public $resprints = '';
 
-    public function __construct($db)
-    {
-        $this->db = $db;
-    }
+	/**
+	 * Constructor.
+	 *
+	 * @param DoliDB $db Database handler
+	 */
+	public function __construct($db)
+	{
+		$this->db = $db;
+	}
 
-    public function doActions($parameters, &$object, &$action, $hookmanager)
-    {
-        global $langs, $user, $confirm, $conf;
+	/**
+	 * Apply prices before Dolibarr writes sales object lines.
+	 *
+	 * @param array<string,mixed> $parameters Hook parameters
+	 * @param object             $object     Current object
+	 * @param string             $action     Current action
+	 * @param HookManager        $hookmanager Hook manager
+	 * @return int
+	 */
+	public function doActions($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $user, $conf;
 
-        $langs->load('pricelist@pricelist');
+		$langs->load('pricelist@pricelist');
 
-        if (version_compare(DOL_VERSION, '4.0.0') >= 0) {
-            $object->fetch_thirdparty();
-            $client = $object->thirdparty;
-        } else {
-            $client = $object->client;
-        }
+		$context = isset($parameters['currentcontext']) ? $parameters['currentcontext'] : '';
+		$client = $this->getObjectThirdparty($object);
+		if (!is_object($client)) {
+			return 0;
+		}
 
-        $context = $parameters['currentcontext'];
-        if ($context == 'ordercard' and $user->rights->commande->creer) { /* COMMANDE */
-            if ($action == 'addline') {
-                if (GETPOST('prod_entry_mode') == 'free') {
-                    return;
-                }
+		if ($context == 'ordercard' && $this->hasRight($user, 'commande', 'creer')) {
+			$this->handleAddOrUpdateLine($object, $action, $client, null, 'OrderLine', '/commande/class/commande.class.php');
+			if ($action == 'altaupdatelines') {
+				$this->updateOrderLines($object, $client);
+			}
+		} elseif ($context == 'propalcard' && $this->hasRight($user, 'propal', 'creer')) {
+			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'PropaleLigne', '/comm/propal/class/propal.class.php');
+			if ($action == 'altaupdatelines') {
+				$this->updatePropalLines($object, $client);
+			}
+		} elseif (in_array($context, array('invoicecard', 'invoicereccard')) && $this->hasRight($user, 'facture', 'creer')) {
+			$this->handleAddOrUpdateLine($object, $action, $client, null, 'FactureLigne', '/compta/facture/class/facture.class.php');
+			if ($action == 'altaupdatelines') {
+				$this->updateInvoiceLines($object, $client);
+			}
+		} elseif ($context == 'contractcard' && $this->hasRight($user, 'contrat', 'creer')) {
+			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'ContratLigne', '/contrat/class/contrat.class.php');
+			if ($action == 'altaupdatelines') {
+				$this->updateContractLines($object, $client);
+			}
+		}
 
-                if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) and GETPOSTINT('price_ht') != 0) {
-                    return;
-                }
+		return 0;
+	}
 
-                $idprod = GETPOST('idprod');
-                $qty = GETPOST('qty');
+	/**
+	 * Add the native category type used by contracts when lmdbzoning does not do it.
+	 *
+	 * @param array<string,mixed> $parameters Hook parameters
+	 * @param Categorie          $object     Category object
+	 * @param string             $action     Current action
+	 * @param HookManager        $hookmanager Hook manager
+	 * @return int
+	 */
+	public function constructCategory($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $conf;
 
-                $pricelist = new PriceList($this->db);
-                $obj = $pricelist->get_price($idprod, $client, $qty);
-                if (!is_int($obj)) {
-                    if ($obj->price) {
-                        $_POST['price_ht'] = price($obj->price);
-                    } else {
-                        $_POST['remise_percent'] = price($obj->tx_discount);
-                    }
+		if ((function_exists('isModEnabled') && isModEnabled('lmdbzoning')) || (!function_exists('isModEnabled') && !empty($conf->lmdbzoning->enabled))) {
+			return 0;
+		}
 
-                    setEventMessage($langs->trans('PriceListInsert'));
-                }
-            } elseif (in_array($action, array('updateligne', 'updateline'))) {
-                $idprod = GETPOST('productid');
-                if (!$idprod) {
-                    return;
-                }
+		$langs->load('pricelist@pricelist');
+		$this->results = array(
+			array(
+				'id' => 450022,
+				'code' => 'contract',
+				'cat_fk' => 'contract',
+				'cat_table' => 'contract',
+				'obj_class' => 'Contrat',
+				'obj_table' => 'contrat',
+				'label' => 'Contract',
+			),
+		);
+		$hookmanager->resArray = $this->results;
 
-                $lineid = GETPOST('lineid');
-                $qty = GETPOST('qty');
+		return 0;
+	}
 
-                $line = new OrderLine($this->db);
-                $line->fetch($lineid);
-                if (floatval($line->qty) != floatval($qty)) { // qty updated
-                    $pricelist = new PriceList($this->db);
-                    $obj = $pricelist->get_price($idprod, $client, $qty);
-                    if (!is_int($obj)) {
-                        if ($obj->price) {
-                            $_POST['price_ht'] = price($obj->price);
-                        } else {
-                            $_POST['remise_percent'] = price($obj->tx_discount);
-                        }
+	/**
+	 * Add mass price refresh button.
+	 *
+	 * @param array<string,mixed> $parameters Hook parameters
+	 * @param object             $object     Current object
+	 * @param string             $action     Current action
+	 * @param HookManager        $hookmanager Hook manager
+	 * @return int
+	 */
+	public function addMoreActionsButtons($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $user;
 
-                        setEventMessage($langs->trans('PriceListInsert'));
-                    }
-                }
-            } elseif ($action == 'altaupdatelines') {
-                $pricelist = new PriceList($this->db);
-                $updatedLines = 0;
+		$context = isset($parameters['currentcontext']) ? $parameters['currentcontext'] : '';
+		if (
+			($context == 'ordercard' && $this->hasRight($user, 'commande', 'creer'))
+			|| ($context == 'propalcard' && $this->hasRight($user, 'propal', 'creer'))
+			|| ($context == 'contractcard' && $this->hasRight($user, 'contrat', 'creer'))
+			|| (in_array($context, array('invoicecard', 'invoicereccard')) && $this->hasRight($user, 'facture', 'creer'))
+		) {
+			print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&action=altaupdatelines&token='.newToken().'">'.$langs->trans('PriceListUpdate').'</a>';
+		}
 
-                foreach ($object->lines as $line) {
-                    if (empty($line->fk_product)) {
-                        continue;
-                    }
+		return 0;
+	}
 
-                    $obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
-                    if (!is_int($obj)) {
-                        if ($obj->price) {
-                            $pu = price($obj->price);
-                            $remise_percent = $line->remise_percent;
-                        } else {
-                            $pu = $line->subprice;
-                            $remise_percent = price($obj->tx_discount);
-                        }
+	/**
+	 * Handle addline and updateline actions.
+	 *
+	 * @param object      $object       Current object
+	 * @param string      $action       Current action
+	 * @param object      $client       Thirdparty
+	 * @param ?object     $sourceObject Source object
+	 * @param string      $lineClass    Line class
+	 * @param string      $classFile    Class file
+	 * @return void
+	 */
+	private function handleAddOrUpdateLine($object, $action, $client, $sourceObject, $lineClass, $classFile)
+	{
+		global $conf;
 
-                        $res = $object->updateline(
-                            $line->id,
-                            $line->description,
-                            $pu,
-                            $line->qty,
-                            $remise_percent,
-                            $line->tva_tx,
-                            $line->localtax1_tx,
-                            $line->localtax2_tx,
-                            'HT',
-                            $line->info_bits,
-                            $line->date_start,
-                            $line->date_end,
-                            $line->product_type,
-                            $line->fk_parent_line,
-                            0,
-                            $line->fk_fournprice,
-                            $line->pa_ht,
-                            $line->label,
-                            $line->special_code,
-                            0,
-                            $line->fk_unit,
-                            $line->multicurrency_subprice
-                        );
+		if ($action == 'addline') {
+			if (GETPOST('prod_entry_mode') == 'free') {
+				return;
+			}
+			if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) && GETPOSTINT('price_ht') != 0) {
+				return;
+			}
 
-                        if ($res > 0) {
-                            $updatedLines++;
-                        } else {
-                            setEventMessages($object->error, $object->errors, 'errors');
-                        }
-                    }
-                }
+			$this->applyPriceToPostFromPriceList(GETPOSTINT('idprod'), $client, GETPOST('qty'), $sourceObject);
+			return;
+		}
 
-                if ($updatedLines > 0) {
-                    setEventMessage($langs->trans('PriceListInsert'));
-                }
-            }
-        } elseif ($context == 'propalcard' and $user->rights->propal->creer) { /* PROPAL */
-            if ($action == 'addline') {
-                if (GETPOST('prod_entry_mode') == 'free') {
-                    return;
-                }
+		if (!in_array($action, array('updateligne', 'updateline'))) {
+			return;
+		}
 
-                if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) and GETPOSTINT('price_ht') != 0) {
-                    return;
-                }
+		$lineid = GETPOSTINT('lineid');
+		if ($lineid <= 0) {
+			return;
+		}
+		dol_include_once($classFile);
+		if (!class_exists($lineClass)) {
+			return;
+		}
 
-                $idprod = GETPOST('idprod');
-                $qty = GETPOST('qty');
+		$line = new $lineClass($this->db);
+		if ($line->fetch($lineid) <= 0) {
+			return;
+		}
 
-                $pricelist = new PriceList($this->db);
-                $obj = $pricelist->get_price($idprod, $client, $qty);
-                if (!is_int($obj)) {
-                    if ($obj->price) {
-                        $_POST['price_ht'] = price($obj->price);
-                    } else {
-                        $_POST['remise_percent'] = price($obj->tx_discount);
-                    }
+		$qty = GETPOST('qty');
+		if ((float) $line->qty == (float) $qty) {
+			return;
+		}
 
-                    setEventMessage($langs->trans('PriceListInsert'));
-                }
-            } elseif (in_array($action, array('updateligne', 'updateline'))) {
-                $idprod = GETPOST('productid');
-                if (!$idprod) {
-                    return;
-                }
+		$idprod = GETPOSTINT('productid');
+		if ($idprod <= 0 && !empty($line->fk_product)) {
+			$idprod = (int) $line->fk_product;
+		}
+		if ($idprod <= 0) {
+			return;
+		}
 
-                $lineid = GETPOST('lineid');
-                $qty = GETPOST('qty');
+		$this->applyPriceToPostFromPriceList($idprod, $client, $qty, $sourceObject);
+	}
 
-                $line = new PropaleLigne($this->db);
-                $line->fetch($lineid);
-                if (floatval($line->qty) != floatval($qty)) { // qty updated
-                    $pricelist = new PriceList($this->db);
-                    $obj = $pricelist->get_price($idprod, $client, $qty);
-                    if (!is_int($obj)) {
-                        if ($obj->price) {
-                            $_POST['price_ht'] = price($obj->price);
-                        } else {
-                            $_POST['remise_percent'] = price($obj->tx_discount);
-                        }
+	/**
+	 * Apply price list values to POST before Dolibarr handles the line action.
+	 *
+	 * @param int     $idprod       Product id
+	 * @param object  $client       Thirdparty
+	 * @param mixed   $qty          Quantity
+	 * @param ?object $sourceObject Source object
+	 * @return void
+	 */
+	private function applyPriceToPostFromPriceList($idprod, $client, $qty, $sourceObject)
+	{
+		global $langs;
 
-                        setEventMessage($langs->trans('PriceListInsert'));
-                    }
-                }
-            } elseif ($action == 'altaupdatelines') {
-                $pricelist = new PriceList($this->db);
-                $updatedLines = 0;
+		if ($idprod <= 0) {
+			return;
+		}
 
-                foreach ($object->lines as $line) {
-                    if (empty($line->fk_product)) {
-                        continue;
-                    }
+		$pricelist = new PriceList($this->db);
+		$obj = $pricelist->get_price($idprod, $client, $qty, $sourceObject);
+		if (!is_int($obj) && $this->applyPriceToPost($obj)) {
+			setEventMessage($langs->trans('PriceListInsert'));
+		}
+	}
 
-                    $obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
-                    if (!is_int($obj)) {
-                        if ($obj->price) {
-                            $pu = price($obj->price);
-                            $remise_percent = $line->remise_percent;
-                        } else {
-                            $pu = $line->subprice;
-                            $remise_percent = price($obj->tx_discount);
-                        }
+	/**
+	 * Apply a price row to POST.
+	 *
+	 * @param stdClass $obj Price row
+	 * @return bool
+	 */
+	private function applyPriceToPost($obj)
+	{
+		if (dol_strlen($obj->price)) {
+			$_POST['price_ht'] = price($obj->price);
+		} elseif (dol_strlen($obj->tx_discount)) {
+			$_POST['remise_percent'] = price($obj->tx_discount);
+		}
 
-                        $res = $object->updateline(
-                            $line->id,
-                            $pu,
-                            $line->qty,
-                            $remise_percent,
-                            $line->tva_tx,
-                            $line->localtax1_tx,
-                            $line->localtax2_tx,
-                            $line->desc,
-                            'HT',
-                            $line->info_bits,
-                            $line->special_code,
-                            $line->fk_parent_line,
-                            0,
-                            $line->fk_fournprice,
-                            $line->pa_ht,
-                            $line->label,
-                            $line->product_type,
-                            $line->date_start,
-                            $line->date_end,
-                            0,
-                            $line->fk_unit,
-                            $line->multicurrency_subprice
-                        );
+		if (dol_strlen($obj->cost_price)) {
+			$costPrice = price($obj->cost_price);
+			$_POST['buying_price'] = $costPrice;
+			$_POST['pa_ht'] = $costPrice;
+		}
 
-                        if ($res > 0) {
-                            $updatedLines++;
-                        } else {
-                            setEventMessages($object->error, $object->errors, 'errors');
-                        }
-                    }
-                }
+		return true;
+	}
 
-                if ($updatedLines > 0) {
-                    setEventMessage($langs->trans('PriceListInsert'));
-                }
-            }
-        } elseif (in_array($context, array('invoicecard', 'invoicereccard')) and $user->rights->facture->creer) { /* FACTURE */
-            if ($action == 'addline') {
-                if (GETPOST('prod_entry_mode') == 'free') {
-                    return;
-                }
+	/**
+	 * Update order lines.
+	 *
+	 * @param object $object Order
+	 * @param object $client Thirdparty
+	 * @return void
+	 */
+	private function updateOrderLines($object, $client)
+	{
+		global $langs;
 
-                if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) and GETPOSTINT('price_ht') != 0) {
-                    return;
-                }
+		$pricelist = new PriceList($this->db);
+		$updatedLines = 0;
+		foreach ($object->lines as $line) {
+			if (empty($line->fk_product)) {
+				continue;
+			}
 
-                $idprod = GETPOST('idprod');
-                $qty = GETPOST('qty');
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
+			if (is_int($obj)) {
+				continue;
+			}
 
-                $pricelist = new PriceList($this->db);
-                $obj = $pricelist->get_price($idprod, $client, $qty);
-                if (!is_int($obj)) {
-                    if ($obj->price) {
-                        $_POST['price_ht'] = price($obj->price);
-                    } else {
-                        $_POST['remise_percent'] = price($obj->tx_discount);
-                    }
+			$values = $this->getLinePriceValues($obj, $line);
+			$res = $object->updateline(
+				$line->id,
+				$line->description,
+				$values['pu'],
+				$line->qty,
+				$values['remise_percent'],
+				$line->tva_tx,
+				$line->localtax1_tx,
+				$line->localtax2_tx,
+				'HT',
+				$line->info_bits,
+				$line->date_start,
+				$line->date_end,
+				$line->product_type,
+				$line->fk_parent_line,
+				0,
+				$line->fk_fournprice,
+				$values['pa_ht'],
+				$line->label,
+				$line->special_code,
+				0,
+				$line->fk_unit,
+				$line->multicurrency_subprice
+			);
+			$updatedLines += $this->countUpdatedLine($res, $object);
+		}
 
-                    setEventMessage($langs->trans('PriceListInsert'));
-                }
-            } elseif (in_array($action, array('updateligne', 'updateline'))) {
-                $idprod = GETPOST('productid');
-                if (!$idprod) {
-                    return;
-                }
+		if ($updatedLines > 0) {
+			setEventMessage($langs->trans('PriceListInsert'));
+		}
+	}
 
-                $lineid = GETPOST('lineid');
-                $qty = GETPOST('qty');
+	/**
+	 * Update proposal lines.
+	 *
+	 * @param object $object Proposal
+	 * @param object $client Thirdparty
+	 * @return void
+	 */
+	private function updatePropalLines($object, $client)
+	{
+		global $langs;
 
-                $line = new FactureLigne($this->db);
-                $line->fetch($lineid);
-                if (floatval($line->qty) != floatval($qty)) { // qty updated
-                    $pricelist = new PriceList($this->db);
-                    $obj = $pricelist->get_price($idprod, $client, $qty);
-                    if (!is_int($obj)) {
-                        if ($obj->price) {
-                            $_POST['price_ht'] = price($obj->price);
-                        } else {
-                            $_POST['remise_percent'] = price($obj->tx_discount);
-                        }
+		$pricelist = new PriceList($this->db);
+		$updatedLines = 0;
+		foreach ($object->lines as $line) {
+			if (empty($line->fk_product)) {
+				continue;
+			}
 
-                        setEventMessage($langs->trans('PriceListInsert'));
-                    }
-                }
-            } elseif ($action == 'altaupdatelines') {
-                $pricelist = new PriceList($this->db);
-                $updatedLines = 0;
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			if (is_int($obj)) {
+				continue;
+			}
 
-                foreach ($object->lines as $line) {
-                    if (empty($line->fk_product)) {
-                        continue;
-                    }
+			$values = $this->getLinePriceValues($obj, $line);
+			$res = $object->updateline(
+				$line->id,
+				$values['pu'],
+				$line->qty,
+				$values['remise_percent'],
+				$line->tva_tx,
+				$line->localtax1_tx,
+				$line->localtax2_tx,
+				$line->desc,
+				'HT',
+				$line->info_bits,
+				$line->special_code,
+				$line->fk_parent_line,
+				0,
+				$line->fk_fournprice,
+				$values['pa_ht'],
+				$line->label,
+				$line->product_type,
+				$line->date_start,
+				$line->date_end,
+				0,
+				$line->fk_unit,
+				$line->multicurrency_subprice
+			);
+			$updatedLines += $this->countUpdatedLine($res, $object);
+		}
 
-                    $obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
-                    if (!is_int($obj)) {
-                        if ($obj->price) {
-                            $pu = price($obj->price);
-                            $remise_percent = $line->remise_percent;
-                        } else {
-                            $pu = $line->subprice;
-                            $remise_percent = price($obj->tx_discount);
-                        }
+		if ($updatedLines > 0) {
+			setEventMessage($langs->trans('PriceListInsert'));
+		}
+	}
 
-                        $res = $object->updateline(
-                            $line->id,
-                            $line->desc,
-                            $pu,
-                            $line->qty,
-                            $remise_percent,
-                            $line->date_start,
-                            $line->date_end,
-                            $line->tva_tx,
-                            $line->localtax1_tx,
-                            $line->localtax2_tx,
-                            'HT',
-                            $line->info_bits,
-                            $line->product_type,
-                            $line->fk_parent_line,
-                            0,
-                            $line->fk_fournprice,
-                            $line->pa_ht,
-                            $line->label,
-                            $line->special_code,
-                            0,
-                            $line->situation_percent,
-                            $line->fk_unit,
-                            $line->multicurrency_subprice
-                        );
+	/**
+	 * Update invoice lines.
+	 *
+	 * @param object $object Invoice
+	 * @param object $client Thirdparty
+	 * @return void
+	 */
+	private function updateInvoiceLines($object, $client)
+	{
+		global $langs;
 
-                        if ($res > 0) {
-                            $updatedLines++;
-                        } else {
-                            setEventMessages($object->error, $object->errors, 'errors');
-                        }
-                    }
-                }
+		$pricelist = new PriceList($this->db);
+		$updatedLines = 0;
+		foreach ($object->lines as $line) {
+			if (empty($line->fk_product)) {
+				continue;
+			}
 
-                if ($updatedLines > 0) {
-                    setEventMessage($langs->trans('PriceListInsert'));
-                }
-            }
-        }
-    }
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
+			if (is_int($obj)) {
+				continue;
+			}
 
-    public function addMoreActionsButtons($parameters, &$object, &$action, $hookmanager)
-    {
-        global $langs, $user;
+			$values = $this->getLinePriceValues($obj, $line);
+			$res = $object->updateline(
+				$line->id,
+				$line->desc,
+				$values['pu'],
+				$line->qty,
+				$values['remise_percent'],
+				$line->date_start,
+				$line->date_end,
+				$line->tva_tx,
+				$line->localtax1_tx,
+				$line->localtax2_tx,
+				'HT',
+				$line->info_bits,
+				$line->product_type,
+				$line->fk_parent_line,
+				0,
+				$line->fk_fournprice,
+				$values['pa_ht'],
+				$line->label,
+				$line->special_code,
+				0,
+				$line->situation_percent,
+				$line->fk_unit,
+				$line->multicurrency_subprice
+			);
+			$updatedLines += $this->countUpdatedLine($res, $object);
+		}
 
-        $context = $parameters['currentcontext'];
-        if (
-            ($context == 'ordercard' and $user->rights->commande->creer) /* COMMANDE */
-            or ($context == 'propalcard' and $user->rights->propal->creer) /* PROPAL */
-            or (in_array($context, array('invoicecard', 'invoicereccard')) and $user->rights->facture->creer) /* FACTURE */
-        ) {
-            print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&action=altaupdatelines&token='.newToken().'">'.$langs->trans('PriceListUpdate').'</a>';
-        }
-    }
+		if ($updatedLines > 0) {
+			setEventMessage($langs->trans('PriceListInsert'));
+		}
+	}
+
+	/**
+	 * Update contract lines.
+	 *
+	 * @param object $object Contract
+	 * @param object $client Thirdparty
+	 * @return void
+	 */
+	private function updateContractLines($object, $client)
+	{
+		global $langs;
+
+		$pricelist = new PriceList($this->db);
+		$updatedLines = 0;
+		foreach ($object->lines as $line) {
+			if (empty($line->fk_product)) {
+				continue;
+			}
+
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			if (is_int($obj)) {
+				continue;
+			}
+
+			$values = $this->getLinePriceValues($obj, $line);
+			$res = $object->updateline(
+				$line->id,
+				$this->getLineDescription($line),
+				$values['pu'],
+				$line->qty,
+				$values['remise_percent'],
+				$line->date_start,
+				$line->date_end,
+				$line->tva_tx,
+				$line->localtax1_tx,
+				$line->localtax2_tx,
+				isset($line->date_start_real) ? $line->date_start_real : '',
+				isset($line->date_end_real) ? $line->date_end_real : '',
+				'HT',
+				$line->info_bits,
+				$line->fk_fournprice,
+				$values['pa_ht'],
+				isset($line->array_options) ? $line->array_options : array(),
+				$line->fk_unit,
+				isset($line->rang) ? $line->rang : 0
+			);
+			$updatedLines += $this->countUpdatedLine($res, $object);
+		}
+
+		if ($updatedLines > 0) {
+			setEventMessage($langs->trans('PriceListInsert'));
+		}
+	}
+
+	/**
+	 * Return line price values.
+	 *
+	 * @param stdClass $obj  Price row
+	 * @param object   $line Line object
+	 * @return array<string,mixed>
+	 */
+	private function getLinePriceValues($obj, $line)
+	{
+		$pu = $this->getLineSubprice($line);
+		$remisePercent = isset($line->remise_percent) ? $line->remise_percent : 0;
+		if (dol_strlen($obj->price)) {
+			$pu = price($obj->price);
+		} elseif (dol_strlen($obj->tx_discount)) {
+			$remisePercent = price($obj->tx_discount);
+		}
+
+		$pa = isset($line->pa_ht) ? $line->pa_ht : null;
+		if (dol_strlen($obj->cost_price)) {
+			$pa = price($obj->cost_price);
+		}
+
+		return array(
+			'pu' => $pu,
+			'remise_percent' => $remisePercent,
+			'pa_ht' => $pa,
+		);
+	}
+
+	/**
+	 * Count an updated line or display errors.
+	 *
+	 * @param int    $res    Update result
+	 * @param object $object Updated object
+	 * @return int
+	 */
+	private function countUpdatedLine($res, $object)
+	{
+		if ($res > 0) {
+			return 1;
+		}
+
+		setEventMessages($object->error, $object->errors, 'errors');
+		return 0;
+	}
+
+	/**
+	 * Return line subprice.
+	 *
+	 * @param object $line Line object
+	 * @return mixed
+	 */
+	private function getLineSubprice($line)
+	{
+		if (isset($line->subprice)) {
+			return $line->subprice;
+		}
+		if (isset($line->price_ht)) {
+			return $line->price_ht;
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Return line description.
+	 *
+	 * @param object $line Line object
+	 * @return string
+	 */
+	private function getLineDescription($line)
+	{
+		if (isset($line->desc)) {
+			return $line->desc;
+		}
+		if (isset($line->description)) {
+			return $line->description;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Return thirdparty linked to the current object.
+	 *
+	 * @param object $object Current object
+	 * @return ?object
+	 */
+	private function getObjectThirdparty($object)
+	{
+		if (method_exists($object, 'fetch_thirdparty')) {
+			$object->fetch_thirdparty();
+		}
+		if (!empty($object->thirdparty) && is_object($object->thirdparty)) {
+			return $object->thirdparty;
+		}
+		if (!empty($object->client) && is_object($object->client)) {
+			return $object->client;
+		}
+
+		$socid = 0;
+		if (!empty($object->socid)) {
+			$socid = (int) $object->socid;
+		} elseif (!empty($object->fk_soc)) {
+			$socid = (int) $object->fk_soc;
+		}
+		if ($socid <= 0) {
+			return null;
+		}
+
+		dol_include_once('/societe/class/societe.class.php');
+		if (!class_exists('Societe')) {
+			return null;
+		}
+		$soc = new Societe($this->db);
+		if ($soc->fetch($socid) <= 0) {
+			return null;
+		}
+
+		return $soc;
+	}
+
+	/**
+	 * Check a Dolibarr right with old and new APIs.
+	 *
+	 * @param User   $user   User
+	 * @param string $module Module key
+	 * @param string $right  Right key
+	 * @return bool
+	 */
+	private function hasRight($user, $module, $right)
+	{
+		if (method_exists($user, 'hasRight')) {
+			return (bool) $user->hasRight($module, $right);
+		}
+
+		return !empty($user->rights->$module->$right);
+	}
 }

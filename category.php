@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,18 +26,35 @@ dol_include_once('/pricelist/class/pricelist.class.php');
 
 $id=GETPOST('id');
 $label=GETPOST('label', 'alpha');
+$type = GETPOST('type', 'aZ09');
 $action = GETPOST('action');
 $confirm = GETPOST('confirm');
 $productid = GETPOST('productid');
 $qty = GETPOST('qty');
 $price = GETPOST('price');
 $tx_discount = GETPOST('tx_discount');
+$cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
 $lineid = GETPOST('lineid');
 $linesid = GETPOST('linesid', 'array');
 
 $pricelist = new PriceList($db);
 $object = new Categorie($db);
 $object->fetch($id, $label);
+
+$categorytypes = array(
+	'customer' => array('id' => (defined('Categorie::TYPE_CUSTOMER') ? Categorie::TYPE_CUSTOMER : 2), 'title' => 'CustomersCategoryShort', 'root' => 'customer'),
+	'propal' => array('id' => 23, 'title' => 'PropalCategory', 'root' => 'propal'),
+	'contract' => array('id' => 450022, 'title' => 'ContractCategory', 'root' => 'contract'),
+);
+if (empty($type)) {
+	$type = 'customer';
+}
+if (empty($categorytypes[$type])) {
+	accessforbidden();
+}
+if (!empty($object->type) && (int) $object->type !== (int) $categorytypes[$type]['id']) {
+	accessforbidden();
+}
 
 $langs->load("categories");
 $langs->load("pricelist@pricelist");
@@ -60,25 +78,25 @@ if ($user->rights->produit->supprimer or $user->rights->service->supprimer) {
 
 llxHeader('', $langs->trans('Categories'), '', '', '', '', $arrayofjs);
 
-$title = $langs->trans("CustomersCategoryShort");
+$title = $langs->trans($categorytypes[$type]['title']);
 
-$head = categories_prepare_head($object, 'customer');
+$head = categories_prepare_head($object, $categorytypes[$type]['root']);
 dol_fiche_head($head, 'pricelist', $title, 0, 'category');
 
 $object->next_prev_filter = ' type = '.$object->type;
 $object->ref = $object->label;
-$morehtmlref = '<br><div class="refidno"><a href="'.DOL_URL_ROOT.'/categories/index.php?leftmenu=cat&type=customer">'.$langs->trans("Root").'</a> >> ';
+$morehtmlref = '<br><div class="refidno"><a href="'.DOL_URL_ROOT.'/categories/index.php?leftmenu=cat&type='.$categorytypes[$type]['root'].'">'.$langs->trans("Root").'</a> >> ';
 $ways = $object->print_all_ways(" &gt;&gt; ", '', 1);
 foreach ($ways as $way) {
     $morehtmlref .= $way."<br>\n";
 }
 $morehtmlref .= '</div>';
 
-dol_banner_tab($object, 'label', '', ($user->socid ? 0 : 1), 'label', 'label', $morehtmlref, '&type=customer');
+dol_banner_tab($object, 'label', '', ($user->socid ? 0 : 1), 'label', 'label', $morehtmlref, '&type='.$categorytypes[$type]['root']);
 
 dol_fiche_end();
 
-$list = $pricelist->search(0, 0, $id);
+$list = $pricelist->search(0, 0, $id, $type);
 include dol_buildpath('/pricelist/includes/view.inc.php');
 
 /*

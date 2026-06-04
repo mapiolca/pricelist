@@ -87,10 +87,11 @@ class InterfacePriceListTriggers extends DolibarrTriggers
 
         switch ($action) {
             // Companies
-            case 'COMPANY_DELETE':
-                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
-                $sql.= " WHERE fk_soc = ".$object->id;
-                $resql = $this->db->query($sql);
+	            case 'COMPANY_DELETE':
+	                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
+	                $sql.= " WHERE fk_soc = ".$object->id;
+	                $sql.= " AND entity = ".((int) $conf->entity);
+	                $resql = $this->db->query($sql);
                 if ($resql) {
                     return 1;
                 } else {
@@ -115,7 +116,7 @@ class InterfacePriceListTriggers extends DolibarrTriggers
                     return 0;
                 }
 
-                $pricelist = new Pricelist($this->db);
+                $pricelist = new PriceList($this->db);
                 $list = $pricelist->search($originalId);
                 if (!is_array($list)) {
                     $object->error = $pricelist->error;
@@ -136,10 +137,11 @@ class InterfacePriceListTriggers extends DolibarrTriggers
                 return 1;
                 break;
 
-            case 'PRODUCT_DELETE':
-                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
-                $sql.= " WHERE fk_product = ".$object->id;
-                $resql = $this->db->query($sql);
+	            case 'PRODUCT_DELETE':
+	                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
+	                $sql.= " WHERE fk_product = ".$object->id;
+	                $sql.= " AND entity = ".((int) $conf->entity);
+	                $resql = $this->db->query($sql);
                 if ($resql) {
                     return 1;
                 } else {
@@ -163,23 +165,32 @@ class InterfacePriceListTriggers extends DolibarrTriggers
             case 'LINEBILL_UPDATE':
                 break;
 
-            // Categories
-            case 'CATEGORY_DELETE':
-                if ($object->type != 2 and $object->type != $object::TYPE_CUSTOMER) {
-                    return 0;
-                }
+	            // Categories
+	            case 'CATEGORY_DELETE':
+					$categoryField = '';
+					$typeCustomer = defined('Categorie::TYPE_CUSTOMER') ? Categorie::TYPE_CUSTOMER : 2;
+					if ((int) $object->type === (int) $typeCustomer) {
+						$categoryField = 'fk_cat';
+					} elseif ((int) $object->type === 23) {
+						$categoryField = 'fk_cat_propal';
+					} elseif ((int) $object->type === 450022) {
+						$categoryField = 'fk_cat_contract';
+					}
+	                if ($categoryField === '') {
+	                    return 0;
+	                }
 
-                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
-                $sql.= " WHERE fk_cat = ".$object->id;
-                $resql = $this->db->query($sql);
+	                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
+	                $sql.= " WHERE ".$categoryField." = ".$object->id;
+	                $sql.= " AND entity = ".((int) $conf->entity);
+	                $resql = $this->db->query($sql);
                 if ($resql) {
                     return 1;
                 } else {
                     $object->errors[] = $langs->trans('CanNotDeletePriceList', $this->db->lasterror());
                     return -1;
                 }
-                break;
-                break;
+	                break;
         }
 
         return 0;

@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2003      Rodolphe Quiedeville <rodolphe@quiedeville.org>
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ * Copyright (C) 2003      Rodolphe Quiedeville <rodolphe@quiedeville.org>
  * Copyright (C) 2004-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2005-2012 Regis Houssin        <regis.houssin@capnetworks.com>
  * Copyright (C) 2016-2019 Garcia MICHEL <garcia@soamichel.fr>
@@ -46,22 +47,26 @@ class modPriceList extends DolibarrModules
 
         // Id for module (must be unique).
         // Use here a free id (See in Home -> System information -> Dolibarr for list of used modules id).
-        $this->numero = 203105;
+		// EN: Align module identifiers with Les Métiers du Bâtiment. FR: Aligner les identifiants du module avec Les Métiers du Bâtiment.
+		$this->numero = 450008;
         // Key text used to identify module (for permissions, menus, etc...)
         $this->rights_class = 'pricelist';
 
         // Family can be 'crm','financial','hr','projects','products','ecm','technic','other'
         // It is used to group modules in module setup page
-        $this->family = "products";
+		// EN: Group the module under the Les Métiers du Bâtiment family. FR: Regrouper le module sous la famille Les Métiers du Bâtiment.
+		$this->family = "Les Métiers du Bâtiment";
         // Module label (no space allowed), used if translation string 'ModuleXXXName' not found (where XXX is value of numeric property 'numero' of module)
         $this->name = preg_replace('/^mod/i', '', get_class($this));
         // Module description, used if translation string 'ModuleXXXDesc' not found (where XXX is value of numeric property 'numero' of module)
-        $this->description = "";
-        // Possible values for version are: 'development', 'experimental', 'dolibarr' or version
-        $this->version = '1.9.1';
-        $this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
-        $this->editor_name= 'SM2i';
-        $this->editor_url= 'https://www.sm-2i.fr';
+		// EN: Provide a bilingual module description. FR: Fournir une description bilingue du module.
+		$this->description = "Manage selling and cost price lists / Gestion des tarifs de vente et de revient";
+		// Possible values for version are: 'development', 'experimental', 'dolibarr' or version
+			$this->version = '2.1.0';
+		$this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
+		// EN: Reference the new editor information. FR: Référencer les nouvelles informations de l'éditeur.
+		$this->editor_name= 'Les Métiers du Bâtiment';
+		$this->editor_url= 'https://lesmetiersdubatiment.fr';
         // Key used in llx_const table to save module status enabled/disabled (where MYMODULE is value of property name of module in uppercase)
         $this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
         // Where to store the module in setup page (0=common,1=interface,2=others,3=very specific)
@@ -69,7 +74,8 @@ class modPriceList extends DolibarrModules
         // Name of image file used for this module.
         // If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
         // If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
-        $this->picto='generic';
+		// EN: Use the currency pictogram to match pricing features. FR: Utiliser le pictogramme monnaie pour refléter les fonctionnalités tarifaires.
+		$this->picto='currency';
 
         // Defined all module parts (triggers, login, substitutions, menus, css, etc...)
         // for default path (eg: /pricelist/core/xxxxx) (0=disable, 1=enable)
@@ -90,25 +96,25 @@ class modPriceList extends DolibarrModules
         //							'dir' => array('output' => 'othermodulename'),      // To force the default directories names
         //							'workflow' => array('WORKFLOW_MODULE1_YOURACTIONTYPE_MODULE2'=>array('enabled'=>'! empty($conf->module1->enabled) && ! empty($conf->module2->enabled)', 'picto'=>'yourpicto@pricelist')) // Set here all workflow context managed by module
         //                        );
-        $this->module_parts = array(
-            'triggers' => 1,
-            'hooks' => array('ordercard', 'propalcard', 'invoicecard', 'invoicereccard', 'productcard', 'thirdpartycard')
-        );
+	        $this->module_parts = array(
+	            'triggers' => 1,
+	            'hooks' => array('category', 'ordercard', 'propalcard', 'contractcard', 'invoicecard', 'invoicereccard', 'productcard', 'thirdpartycard')
+	        );
 
         // Data directories to create when module is enabled.
         // Example: this->dirs = array("/pricelist/temp");
         $this->dirs = array();
 
         // Config pages. Put here list of php page, stored into pricelist/admin directory, to use to setup module.
-        $this->config_page_url = array("setup.php@pricelist");
+	        $this->config_page_url = array("setup.php@pricelist", "compatibility.php@pricelist");
 
         // Dependencies
         $this->hidden = false;			// A condition to hide module
         $this->depends = array();		// List of modules id that must be enabled if this module is enabled
         $this->requiredby = array();	// List of modules id to disable if this one is disabled
         $this->conflictwith = array();	// List of modules id this module is in conflict with
-        $this->phpmin = array(5,0);					// Minimum version of PHP required by module
-        $this->need_dolibarr_version = array(6,0);	// Minimum version of Dolibarr required by module
+	        $this->phpmin = array(8,0);					// Minimum version of PHP required by module
+	        $this->need_dolibarr_version = array(20,0);	// Minimum version of Dolibarr required by module
         $this->langfiles = array("pricelist@pricelist");
 
         // Constants
@@ -146,11 +152,13 @@ class modPriceList extends DolibarrModules
         // 'stock'            to add a tab in stock view
         // 'thirdparty'       to add a tab in third party view
         // 'user'             to add a tab in user view
-        $this->tabs = array(
-            'product:+pricelist:PriceLists:pricelist@pricelist:1:/pricelist/product.php?id=__ID__',
-            'thirdparty:+pricelist:PriceLists:pricelist@pricelist:$object->client:/pricelist/customer.php?id=__ID__',
-            'categories_customer:+pricelist:PriceLists:pricelist@pricelist:1:/pricelist/category.php?id=__ID__'
-        );
+	        $this->tabs = array(
+	            'product:+pricelist:PriceLists:pricelist@pricelist:1:/pricelist/product.php?id=__ID__',
+	            'thirdparty:+pricelist:PriceLists:pricelist@pricelist:$object->client:/pricelist/customer.php?id=__ID__',
+	            'categories_customer:+pricelist:PriceLists:pricelist@pricelist:1:/pricelist/category.php?id=__ID__&type=customer',
+	            'categories_propal:+pricelist:PriceLists:pricelist@pricelist:1:/pricelist/category.php?id=__ID__&type=propal',
+	            'categories_contract:+pricelist:PriceLists:pricelist@pricelist:1:/pricelist/category.php?id=__ID__&type=contract'
+	        );
 
         // Dictionaries
         if (! isset($conf->pricelist->enabled)) {
@@ -238,12 +246,17 @@ class modPriceList extends DolibarrModules
         $this->export_label[$r]='PriceLists';	// Translation key (used only if key ExportDataset_xxx_z not found)
         $this->export_enabled[$r]='1';                               // Condition to show export in list (ie: '$user->id==3'). Set to 1 to always show when module is enabled.
         $this->export_permission[$r]=array(array('produit', 'export'));
-        $this->export_fields_array[$r]=array(
-            's.rowid' => 'IdCompany',
-            's.nom' => 'CompanyName',
-            'cs.rowid' => 'CategId',
-            'cs.label' => 'CustomersCategoriesShort',
-            'p.rowid' => 'ProductId',
+	        $this->export_fields_array[$r]=array(
+	            'pl.entity' => 'Entity',
+	            's.rowid' => 'IdCompany',
+	            's.nom' => 'CompanyName',
+	            'cs.rowid' => 'CategId',
+	            'cs.label' => 'CustomersCategoriesShort',
+	            'csp.rowid' => 'PropalCategoryId',
+	            'csp.label' => 'PropalCategory',
+	            'csc.rowid' => 'ContractCategoryId',
+	            'csc.label' => 'ContractCategory',
+	            'p.rowid' => 'ProductId',
             'p.ref' => 'ProductRef',
             'p.label' => 'ProductLabel',
             'pl.rowid' => 'PriceListId',
@@ -251,11 +264,16 @@ class modPriceList extends DolibarrModules
             'pl.price' => 'PriceHT',
             'u.login' => 'User'
         );
-        $this->export_entities_array[$r]=array(
-            's.rowid' => 'company',
+	        $this->export_entities_array[$r]=array(
+	            'pl.entity' => 'PriceList',
+	            's.rowid' => 'company',
             's.nom' => 'company',
-            'cs.rowid' => 'category',
-            'cs.label' => 'category',
+	            'cs.rowid' => 'category',
+	            'cs.label' => 'category',
+	            'csp.rowid' => 'category',
+	            'csp.label' => 'category',
+	            'csc.rowid' => 'category',
+	            'csc.label' => 'category',
             'p.rowid' => 'product',
             'p.ref' => 'product',
             'p.label' => 'product',
@@ -265,10 +283,12 @@ class modPriceList extends DolibarrModules
             'u.login' => 'user'
         );
         $this->export_sql_start[$r]='SELECT ';
-        $this->export_sql_end[$r]  =' FROM '.MAIN_DB_PREFIX.'pricelist AS pl';
-        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'societe AS s ON s.rowid = pl.fk_soc';
-        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'categorie AS cs ON cs.rowid = pl.fk_cat';
-        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'product AS p ON p.rowid = pl.fk_product';
+	        $this->export_sql_end[$r]  =' FROM '.MAIN_DB_PREFIX.'pricelist AS pl';
+	        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'societe AS s ON s.rowid = pl.fk_soc';
+	        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'categorie AS cs ON cs.rowid = pl.fk_cat';
+	        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'categorie AS csp ON csp.rowid = pl.fk_cat_propal';
+	        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'categorie AS csc ON csc.rowid = pl.fk_cat_contract';
+	        $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'product AS p ON p.rowid = pl.fk_product';
         $this->export_sql_end[$r] .=' LEFT JOIN '.MAIN_DB_PREFIX.'user AS u ON u.rowid = pl.fk_user_creation';
         $this->export_sql_order[$r] =' ORDER BY s.nom';
         $r++;
@@ -281,12 +301,15 @@ class modPriceList extends DolibarrModules
         $this->import_icon[$r]=$this->picto;
         $this->import_entities_array[$r]=array();
         $this->import_tables_array[$r]=array('p'=>MAIN_DB_PREFIX.'pricelist');
-        $this->import_fields_array[$r]=array(
-            'p.rowid' => 'PriceListId',
-            'p.fk_product' => 'ProductOrService*',
-            'p.fk_soc' => 'CompanyName',
-            'p.fk_cat' => 'CategId',
-            'p.from_qty' => 'FromQtyLong*',
+	        $this->import_fields_array[$r]=array(
+	            'p.rowid' => 'PriceListId',
+	            'p.entity' => 'Entity',
+	            'p.fk_product' => 'ProductOrService*',
+	            'p.fk_soc' => 'CompanyName',
+	            'p.fk_cat' => 'CategId',
+	            'p.fk_cat_propal' => 'PropalCategoryId',
+	            'p.fk_cat_contract' => 'ContractCategoryId',
+	            'p.from_qty' => 'FromQtyLong*',
             'p.price' => 'PriceHT*',
             'p.fk_user_creation' => 'User*'
         );
@@ -311,14 +334,18 @@ class modPriceList extends DolibarrModules
      */
     public function init($options='')
     {
-        $sql = array(
-            "UPDATE ".MAIN_DB_PREFIX."pricelist SET fk_soc = NULL WHERE fk_soc IN (0, -1)",
-            "UPDATE ".MAIN_DB_PREFIX."pricelist SET fk_cat = NULL WHERE fk_cat IN (0, -1)"
-        );
+	        $sql = array(
+	            "UPDATE ".MAIN_DB_PREFIX."pricelist SET fk_soc = NULL WHERE fk_soc IN (0, -1)",
+	            "UPDATE ".MAIN_DB_PREFIX."pricelist SET fk_cat = NULL WHERE fk_cat IN (0, -1)",
+	            "UPDATE ".MAIN_DB_PREFIX."pricelist SET fk_cat_propal = NULL WHERE fk_cat_propal IN (0, -1)",
+	            "UPDATE ".MAIN_DB_PREFIX."pricelist SET fk_cat_contract = NULL WHERE fk_cat_contract IN (0, -1)",
+	            "UPDATE ".MAIN_DB_PREFIX."pricelist SET entity = 1 WHERE entity IS NULL OR entity < 1"
+	        );
 
-        $result=$this->_load_tables('/pricelist/sql/');
+	        $result=$this->_load_tables('/pricelist/sql/');
+			$this->syncPriceListSchema();
 
-        return $this->_init($sql, $options);
+	        return $this->_init($sql, $options);
     }
 
     /**
@@ -329,10 +356,109 @@ class modPriceList extends DolibarrModules
    *      @param      string	$options    Options when enabling module ('', 'noboxes')
      *      @return     int             	1 if OK, 0 if KO
      */
-    public function remove($options='')
+	    public function remove($options='')
     {
         $sql = array();
 
-        return $this->_remove($sql, $options);
-    }
-}
+	        return $this->_remove($sql, $options);
+	    }
+
+	/**
+	 * Keep indexes and the contract category link table available for existing installations.
+	 *
+	 * @return void
+	 */
+	private function syncPriceListSchema()
+	{
+		if ($this->tableExists('pricelist')) {
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_entity', array('entity'));
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_product', array('fk_product'));
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_societe', array('fk_soc'));
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_categorie', array('fk_cat'));
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_categorie_propal', array('fk_cat_propal'));
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_categorie_contract', array('fk_cat_contract'));
+			$this->addIndexIfMissing('pricelist', 'idx_pricelist_user_creation', array('fk_user_creation'));
+		}
+
+		if (!$this->tableExists('categorie_contract')) {
+			$this->db->query('CREATE TABLE '.MAIN_DB_PREFIX.'categorie_contract (fk_categorie integer NOT NULL, fk_contract integer NOT NULL, import_key varchar(14)) ENGINE=innodb');
+		}
+		if ($this->tableExists('categorie_contract')) {
+			$this->addPrimaryKeyIfMissing('categorie_contract', array('fk_categorie', 'fk_contract'));
+			$this->addIndexIfMissing('categorie_contract', 'idx_categorie_contract_fk_categorie', array('fk_categorie'));
+			$this->addIndexIfMissing('categorie_contract', 'idx_categorie_contract_fk_contract', array('fk_contract'));
+		}
+	}
+
+	/**
+	 * Check if a table exists.
+	 *
+	 * @param string $tableElement Table without MAIN_DB_PREFIX
+	 * @return bool
+	 */
+	private function tableExists($tableElement)
+	{
+		$sql = "SHOW TABLES LIKE '".$this->db->escape(MAIN_DB_PREFIX.$tableElement)."'";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			return false;
+		}
+		$exists = ($this->db->num_rows($resql) > 0);
+		$this->db->free($resql);
+
+		return $exists;
+	}
+
+	/**
+	 * Add an index when missing.
+	 *
+	 * @param string       $tableElement Table without MAIN_DB_PREFIX
+	 * @param string       $indexName    Index name
+	 * @param array<int,string> $columns Columns
+	 * @return void
+	 */
+	private function addIndexIfMissing($tableElement, $indexName, $columns)
+	{
+		if ($this->indexExists($tableElement, $indexName)) {
+			return;
+		}
+		$sql = 'ALTER TABLE '.MAIN_DB_PREFIX.$tableElement.' ADD INDEX '.$indexName.' ('.implode(', ', $columns).')';
+		$this->db->query($sql);
+	}
+
+	/**
+	 * Add a primary key when missing.
+	 *
+	 * @param string            $tableElement Table without MAIN_DB_PREFIX
+	 * @param array<int,string> $columns      Columns
+	 * @return void
+	 */
+	private function addPrimaryKeyIfMissing($tableElement, $columns)
+	{
+		if ($this->indexExists($tableElement, 'PRIMARY')) {
+			return;
+		}
+		$sql = 'ALTER TABLE '.MAIN_DB_PREFIX.$tableElement.' ADD PRIMARY KEY ('.implode(', ', $columns).')';
+		$this->db->query($sql);
+	}
+
+	/**
+	 * Check if an index exists.
+	 *
+	 * @param string $tableElement Table without MAIN_DB_PREFIX
+	 * @param string $indexName    Index name
+	 * @return bool
+	 */
+	private function indexExists($tableElement, $indexName)
+	{
+		$sql = "SHOW INDEX FROM ".MAIN_DB_PREFIX.$tableElement." WHERE Key_name = '".$this->db->escape($indexName)."'";
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			return false;
+		}
+		$exists = ($this->db->num_rows($resql) > 0);
+		$this->db->free($resql);
+
+		return $exists;
+	}
+	}

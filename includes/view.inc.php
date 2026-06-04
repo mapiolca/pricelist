@@ -1,8 +1,50 @@
 <?php
+/* Copyright (C) 2024 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+if (!function_exists('pricelist_print_category_cell')) {
+	/**
+	 * Print a category link cell.
+	 *
+	 * @param DoliDB $db Database handler
+	 * @param int    $catid Category id
+	 * @return void
+	 */
+	function pricelist_print_category_cell($db, $catid)
+	{
+		if ($catid > 0) {
+			$category = new Categorie($db);
+			$category->fetch($catid);
+			print '<td><a href="'.DOL_URL_ROOT.'/categories/viewcat.php?id='.$category->id.'&type='.$category->type.'" class="classfortooltip">';
+			print img_object($category->label, 'category', 'class="classfortooltip"').' '.$category->label;
+			print ' </a></td>';
+		} else {
+			print '<td>-</td>';
+		}
+	}
+}
+
+$pricelisttypeparam = (isset($type) && $type ? '&type='.urlencode($type) : '');
 
 if ($list !== null and count($list) > 0) {
     print '<form id="pricelistform" action="'.$_SERVER['PHP_SELF'].'" method="get">';
     print '<input type="hidden" name="id" value="'.$object->id.'">';
+	if (!empty($type)) {
+		print '<input type="hidden" name="type" value="'.dol_escape_htmltag($type).'">';
+	}
     print '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
 
     print '<table class="noborder" width="100%">';
@@ -13,6 +55,8 @@ if ($list !== null and count($list) > 0) {
 
         if (!empty($conf->categorie->enabled)) {
             print '<td>'.$langs->trans("CustomersCategoriesShort").'</td>';
+            print '<td>'.$langs->trans("PropalCategory").'</td>';
+            print '<td>'.$langs->trans("ContractCategory").'</td>';
         }
     } else {
         print '<td>'.$langs->trans("ProductsOrServices").'</td>';
@@ -21,6 +65,7 @@ if ($list !== null and count($list) > 0) {
     print '<td align="right">'.$langs->trans("FromQty").'</td>';
     print '<td align="right">'.$langs->trans("PriceHT").'</td>';
     print '<td align="right">'.$langs->trans("Discount").'</td>';
+	print '<td align="right">'.$langs->trans("CostPriceHT").'</td>';
 
     if (!empty($conf->global->PRICELIST_SHOW_PRICES_TTC)) {
         print '<td align="right">'.$langs->trans("PriceTTC").'</td>';
@@ -50,15 +95,9 @@ if ($list !== null and count($list) > 0) {
             }
 
             if (!empty($conf->categorie->enabled)) {
-                if ($obj->catid > 0) {
-                    $category = new Categorie($db);
-                    $category->fetch($obj->catid);
-                    print '<td><a href="'.DOL_URL_ROOT.'/categories/viewcat.php?id='.$category->id.'&type='.$category->type.'" class="classfortooltip">';
-                    print img_object($category->label, 'category', 'class="classfortooltip"').' '.$category->label;
-                    print ' </a></td>';
-                } else {
-                    print '<td>-</td>';
-                }
+				pricelist_print_category_cell($db, $obj->catid);
+				pricelist_print_category_cell($db, $obj->catid_propal);
+				pricelist_print_category_cell($db, $obj->catid_contract);
             }
 
             $product = $object;
@@ -70,12 +109,14 @@ if ($list !== null and count($list) > 0) {
         }
 
         print '<td align="right">'.price($obj->from_qty).'</td>';
-        print '<td align="right">'.($obj->price?price($obj->price):'-').'</td>';
-        print '<td align="right">'.($obj->tx_discount?price($obj->tx_discount):'-').'</td>';
+        print '<td align="right">'.(dol_strlen($obj->price) ? price($obj->price) : '-').'</td>';
+        print '<td align="right">'.(dol_strlen($obj->tx_discount) ? price($obj->tx_discount) : '-').'</td>';
+		// Show cost price for quick comparison // Affiche le prix de revient pour comparaison rapide
+		print '<td align="right">'.(dol_strlen($obj->cost_price) ? price($obj->cost_price) : '-').'</td>';
 
         if (!empty($conf->global->PRICELIST_SHOW_PRICES_TTC)) {
-            $pu = $obj->price ? $obj->price : $product->price;
-            $tx_discount = $obj->tx_discount ? $obj->tx_discount : 0;
+            $pu = dol_strlen($obj->price) ? $obj->price : $product->price;
+            $tx_discount = dol_strlen($obj->tx_discount) ? $obj->tx_discount : 0;
             $priceTTC = calcul_price_total(1, $pu, $tx_discount, $product->tva_tx, 0, 0, 0, 'HT', 0, $product->type);
 
             print '<td align="right">'.price($priceTTC[2]).'</td>';
@@ -89,7 +130,7 @@ if ($list !== null and count($list) > 0) {
         if ($user->rights->produit->supprimer or $user->rights->service->supprimer) {
             print '<td align="right">';
             print '<input class="flat checkfordelete" type="checkbox" name="linesid[]" value="'.$obj->id.'" '.(in_array($obj->id, $linesid) ? 'checked' : '').'>';
-            print '<a href="'.$_SERVER["PHP_SELF"].'?action=delete_price&id='.$object->id.'&lineid='.$obj->id.'&token='.$_SESSION['newtoken'].'">';
+            print '<a href="'.$_SERVER["PHP_SELF"].'?action=delete_price&id='.$object->id.$pricelisttypeparam.'&lineid='.$obj->id.'&token='.$_SESSION['newtoken'].'">';
             print img_delete();
             print '</a>';
             print '</td>';
@@ -108,7 +149,7 @@ if ($action != 'add') {
     print '<div class="tabsAction">';
 
     if ($user->rights->service or $user->rights->produit->creer) {
-        print '<div class="inline-block divButAction"><a class="butAction" href="'.$_SERVER["PHP_SELF"] . '?id='.$object->id.'&action=add&token='.$_SESSION['newtoken'].'">'.$langs->trans('AddPriceList').'</a></div>';
+        print '<div class="inline-block divButAction"><a class="butAction" href="'.$_SERVER["PHP_SELF"] . '?id='.$object->id.$pricelisttypeparam.'&action=add&token='.$_SESSION['newtoken'].'">'.$langs->trans('AddPriceList').'</a></div>';
     }
 
     if ($user->rights->produit->supprimer or $user->rights->service->supprimer) {
@@ -124,9 +165,12 @@ if ($action != 'add') {
 if ($action == 'add') {
     print_fiche_titre($langs->trans("NewPriceOffer"), '', '');
 
-    print '<form action="'.$_SERVER["PHP_SELF"] . '?id='.$object->id.'" method="post">';
+    print '<form action="'.$_SERVER["PHP_SELF"] . '?id='.$object->id.$pricelisttypeparam.'" method="post">';
     print '<input type="hidden" name="token" value="' . $_SESSION ['newtoken'] . '">';
     print '<input type="hidden" name="action" value="add_confirm">';
+	if (!empty($type)) {
+		print '<input type="hidden" name="type" value="'.dol_escape_htmltag($type).'">';
+	}
 
     print '<table class="border" width="100%">';
 
@@ -145,6 +189,20 @@ if ($action == 'add') {
             print '<td>'.$langs->trans('CustomersCategoriesShort').'</td>';
             print '<td colspan="2">';
             print $form->select_all_categories(Categorie::TYPE_CUSTOMER, $catid, 'catid');
+            print '</td>';
+            print '</tr>';
+
+            print '<tr>';
+            print '<td>'.$langs->trans('PropalCategory').'</td>';
+            print '<td colspan="2">';
+            print $form->select_all_categories(23, $catid_propal, 'catid_propal');
+            print '</td>';
+            print '</tr>';
+
+            print '<tr>';
+            print '<td>'.$langs->trans('ContractCategory').'</td>';
+            print '<td colspan="2">';
+            print $form->select_all_categories(450022, $catid_contract, 'catid_contract');
             print '</td>';
             print '</tr>';
         }
@@ -169,6 +227,8 @@ if ($action == 'add') {
     print '<td colspan="2">';
     print '<input type="text" name="price" value="'.$price.'" placeholder="'.$langs->trans('Price').'">';
     print '<input type="text" name="tx_discount" value="'.$tx_discount.'" placeholder="'.$langs->trans('Discount').'">';
+		// Allow defining the cost price alongside sales data // Permet de définir le prix de revient avec les données de vente
+	print '<input type="text" name="cost_price" value="'.$cost_price.'" placeholder="'.$langs->trans('CostPrice').'">';
     print '</td>';
     print '</tr>';
 

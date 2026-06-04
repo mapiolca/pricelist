@@ -1,6 +1,7 @@
 # Config
 Module203105Name=Produkte Staffelpreise
 Module203105Desc=Management für Produktsstaffelpreise 
+PriceListCompatibility=Kompatibilität des Staffelpreismoduls
 
 # Main
 PriceList=Staffelpreise
@@ -12,10 +13,17 @@ NewPriceOffer=Neuer Tarif erstellen
 FromQtyLong=ab Menge(Anzahl)
 FromQty=Ab
 AllFieldIsRequired=Alle felder sind Pflichtfeldeer
-FillPriceOrDiscountField=Füllen Sie das Feld Preis oder Rabatt aus
+FillPriceOrDiscountField=Füllen Sie das Feld Preis, Rabatt oder Einstandspreis aus
+CostPriceHT=Einstandspreis (netto)
+CostPrice=Einstandspreis
 PriceHT=Netto Preis
 AddedBy=Erstellt durch
 PriceOrDiscountRate=Preis HT oder Reduktionsrate
+PropalCategory=Angebotskategorie
+PropalCategoryId=Angebotskategorie ID
+ContractCategory=Vertragskategorie
+ContractCategoryId=Vertragskategorie ID
+PriceListSingleScopeRequired=Wählen Sie nur einen Tarifbereich: Kunde, Kundenkategorie, Angebotskategorie oder Vertragskategorie
 
 PriceListId=Staffelpreise ID
 
@@ -27,3 +35,22 @@ ConfirmDeletePriceList=Sind Sie sicher diesen Preis zu löschen ?
 CanNotDeletePriceList=Staffelpreise kann nicht gelöscht werden : %s
 
 PriceListUpdate=Update Price list
+
+# Compatibility
+DetectedPHPVersion=Erkannte PHP-Version
+DetectedDolibarrVersion=Erkannte Dolibarr-Version
+MinimumPHPVersion=Minimal unterstützte PHP-Version
+MinimumDolibarrVersion=Minimal unterstützte Dolibarr-Version
+CompatibilityFeatures=Kompatibilitätsfunktionen
+Feature=Funktion
+Status=Status
+Reason=Grund
+Available=Verfügbar
+Unavailable=Nicht verfügbar
+PriceByCustomerCategory=Preis nach Kundenkategorie
+PriceByCustomerCategoryDescription=Preis aus der nativen Kundenkategorie anwenden.
+PriceByPropalCategory=Preis nach Angebotskategorie
+PriceByPropalCategoryDescription=Preis aus der nativen Angebotskategorie anwenden.
+PriceByContractCategory=Preis nach Vertragskategorie
+PriceByContractCategoryDescription=Preis aus der per Hook deklarierten Vertragskategorie anwenden.
+RequiresDolibarr20Php80=Erfordert Dolibarr 20 oder höher und PHP 8.0 oder höher.

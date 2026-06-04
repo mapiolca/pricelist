@@ -1,0 +1,1 @@
+-- Keys are synchronized idempotently by modPriceList::syncPriceListSchema().
