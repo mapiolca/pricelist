@@ -18,6 +18,7 @@
  */
 
 dol_include_once('/pricelist/class/pricelist.class.php');
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 /**
  * Hooks for pricelist.
@@ -62,22 +63,22 @@ class ActionsPriceList
 			return 0;
 		}
 
-		if ($context == 'ordercard' && $this->hasRight($user, 'commande', 'creer')) {
+		if ($context == 'ordercard' && (!empty($user->admin) || $user->hasRight('commande', 'creer'))) {
 			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'OrderLine', '/commande/class/commande.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updateOrderLines($object, $client);
 			}
-		} elseif ($context == 'propalcard' && $this->hasRight($user, 'propal', 'creer')) {
+		} elseif ($context == 'propalcard' && (!empty($user->admin) || $user->hasRight('propal', 'creer'))) {
 			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'PropaleLigne', '/comm/propal/class/propal.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updatePropalLines($object, $client);
 			}
-		} elseif (in_array($context, array('invoicecard', 'invoicereccard')) && $this->hasRight($user, 'facture', 'creer')) {
+		} elseif (in_array($context, array('invoicecard', 'invoicereccard')) && (!empty($user->admin) || $user->hasRight('facture', 'creer'))) {
 			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'FactureLigne', '/compta/facture/class/facture.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updateInvoiceLines($object, $client);
 			}
-		} elseif ($context == 'contractcard' && $this->hasRight($user, 'contrat', 'creer')) {
+		} elseif ($context == 'contractcard' && (!empty($user->admin) || $user->hasRight('contrat', 'creer'))) {
 			$this->handleContractAddOrUpdateLine($object, $action, $client);
 			if ($action == 'altaupdatelines') {
 				$this->updateContractLines($object, $client);
@@ -88,7 +89,7 @@ class ActionsPriceList
 	}
 
 	/**
-	 * Add the native category type used by contracts when lmdbzoning does not do it.
+	 * Add the contract category type when PriceList contract categories are enabled.
 	 *
 	 * @param array<string,mixed> $parameters Hook parameters
 	 * @param Categorie          $object     Category object
@@ -98,9 +99,9 @@ class ActionsPriceList
 	 */
 	public function constructCategory($parameters, &$object, &$action, $hookmanager)
 	{
-		global $langs, $conf;
+		global $langs;
 
-		if ((function_exists('isModEnabled') && isModEnabled('lmdbzoning')) || (!function_exists('isModEnabled') && !empty($conf->lmdbzoning->enabled))) {
+		if (!pricelistIsContractCategoryAvailable()) {
 			return 0;
 		}
 
@@ -114,6 +115,61 @@ class ActionsPriceList
 				'obj_class' => 'Contrat',
 				'obj_table' => 'contrat',
 				'label' => 'Contract',
+			),
+		);
+		$hookmanager->resArray = $this->results;
+
+		return 0;
+	}
+
+	/**
+	 * Ensure the product price list tab is available when the descriptor tab
+	 * condition is filtered by Dolibarr's eval rules.
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters
+	 * @param object             $object      Current object
+	 * @param string             $action      Current action
+	 * @param HookManager        $hookmanager Hook manager
+	 * @return int
+	 */
+	public function completeTabsHead($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $user;
+
+		$context = isset($parameters['currentcontext']) ? $parameters['currentcontext'] : '';
+		$mode = isset($parameters['mode']) ? $parameters['mode'] : '';
+		$filterorigmodule = isset($parameters['filterorigmodule']) ? $parameters['filterorigmodule'] : '';
+		if ($mode != 'add' || $filterorigmodule != 'external') {
+			return 0;
+		}
+		if (!is_object($object) || empty($object->id)) {
+			return 0;
+		}
+		if ($context !== '' && !in_array('productcard', explode(':', $context))) {
+			return 0;
+		}
+		if (isset($object->element) && $object->element != 'product') {
+			return 0;
+		}
+
+		$productType = isset($object->type) ? (int) $object->type : null;
+		if (!pricelistCanReadPrices($user, $productType)) {
+			return 0;
+		}
+
+		$head = isset($parameters['head']) && is_array($parameters['head']) ? $parameters['head'] : array();
+		foreach ($head as $tab) {
+			if (isset($tab[2]) && $tab[2] == 'pricelist') {
+				return 0;
+			}
+		}
+
+		$langs->load('pricelist@pricelist');
+		$this->results = array(
+			array(
+				dol_buildpath('/pricelist/product.php', 1).'?id='.(int) $object->id,
+				$langs->trans('PriceLists'),
+				'pricelist',
 			),
 		);
 		$hookmanager->resArray = $this->results;
@@ -136,10 +192,10 @@ class ActionsPriceList
 
 		$context = isset($parameters['currentcontext']) ? $parameters['currentcontext'] : '';
 		if (
-			($context == 'ordercard' && $this->hasRight($user, 'commande', 'creer'))
-			|| ($context == 'propalcard' && $this->hasRight($user, 'propal', 'creer'))
-			|| ($context == 'contractcard' && $this->hasRight($user, 'contrat', 'creer'))
-			|| (in_array($context, array('invoicecard', 'invoicereccard')) && $this->hasRight($user, 'facture', 'creer'))
+			($context == 'ordercard' && (!empty($user->admin) || $user->hasRight('commande', 'creer')))
+			|| ($context == 'propalcard' && (!empty($user->admin) || $user->hasRight('propal', 'creer')))
+			|| ($context == 'contractcard' && (!empty($user->admin) || $user->hasRight('contrat', 'creer')))
+			|| (in_array($context, array('invoicecard', 'invoicereccard')) && (!empty($user->admin) || $user->hasRight('facture', 'creer')))
 		) {
 			print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&action=altaupdatelines&token='.newToken().'">'.$langs->trans('PriceListUpdate').'</a>';
 		}
@@ -160,13 +216,11 @@ class ActionsPriceList
 	 */
 	private function handleAddOrUpdateLine($object, $action, $client, $sourceObject, $lineClass, $classFile)
 	{
-		global $conf;
-
 		if ($action == 'addline') {
 			if (GETPOST('prod_entry_mode') == 'free') {
 				return;
 			}
-			if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) && GETPOSTINT('price_ht') != 0) {
+			if (getDolGlobalInt('PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING', 0) > 0 && GETPOSTINT('price_ht') != 0) {
 				return;
 			}
 
@@ -218,13 +272,11 @@ class ActionsPriceList
 	 */
 	private function handleContractAddOrUpdateLine($object, $action, $client)
 	{
-		global $conf;
-
 		if ($action == 'addline') {
 			if (GETPOST('prod_entry_mode') == 'free') {
 				return;
 			}
-			if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) && GETPOSTINT('price_ht') != 0) {
+			if (getDolGlobalInt('PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING', 0) > 0 && GETPOSTINT('price_ht') != 0) {
 				return;
 			}
 
@@ -292,7 +344,11 @@ class ActionsPriceList
 
 		$pricelist = new PriceList($this->db);
 		$obj = $pricelist->get_price($idprod, $client, $qty, $sourceObject);
-		if (!is_int($obj) && $this->applyPriceToPost($obj)) {
+		if ($obj === -1 && $pricelist->error) {
+			setEventMessage($langs->trans($pricelist->error), 'errors');
+			return;
+		}
+		if (!is_int($obj) && $this->applyPriceToPost($obj, $idprod)) {
 			setEventMessage($langs->trans('PriceListInsert'));
 		}
 	}
@@ -316,7 +372,11 @@ class ActionsPriceList
 
 		$pricelist = new PriceList($this->db);
 		$obj = $pricelist->get_price($idprod, $client, $qty, $object);
-		if (!is_int($obj) && $this->applyPriceToContractLinePost($obj)) {
+		if ($obj === -1 && $pricelist->error) {
+			setEventMessage($langs->trans($pricelist->error), 'errors');
+			return;
+		}
+		if (!is_int($obj) && $this->applyPriceToContractLinePost($obj, $idprod)) {
 			setEventMessage($langs->trans('PriceListInsert'));
 		}
 	}
@@ -324,10 +384,11 @@ class ActionsPriceList
 	/**
 	 * Apply a price row to POST.
 	 *
-	 * @param stdClass $obj Price row
+	 * @param stdClass $obj    Price row
+	 * @param int      $idprod Product id
 	 * @return bool
 	 */
-	private function applyPriceToPost($obj)
+	private function applyPriceToPost($obj, $idprod)
 	{
 		if (dol_strlen($obj->price)) {
 			$_POST['price_ht'] = price($obj->price);
@@ -335,8 +396,9 @@ class ActionsPriceList
 			$_POST['remise_percent'] = price($obj->tx_discount);
 		}
 
-		if (dol_strlen($obj->cost_price)) {
-			$costPrice = price($obj->cost_price);
+		$costPrice = $this->getEffectiveCostPrice($obj, $idprod);
+		if ($costPrice !== null) {
+			$costPrice = price($costPrice);
 			$_POST['buying_price'] = $costPrice;
 			$_POST['pa_ht'] = $costPrice;
 		}
@@ -347,10 +409,11 @@ class ActionsPriceList
 	/**
 	 * Apply a price row to Dolibarr contract line edit fields.
 	 *
-	 * @param stdClass $obj Price row
+	 * @param stdClass $obj    Price row
+	 * @param int      $idprod Product id
 	 * @return bool
 	 */
-	private function applyPriceToContractLinePost($obj)
+	private function applyPriceToContractLinePost($obj, $idprod)
 	{
 		if (dol_strlen($obj->price)) {
 			$_POST['elprice'] = price($obj->price);
@@ -358,8 +421,9 @@ class ActionsPriceList
 			$_POST['elremise_percent'] = price($obj->tx_discount);
 		}
 
-		if (dol_strlen($obj->cost_price)) {
-			$_POST['buying_price'] = price($obj->cost_price);
+		$costPrice = $this->getEffectiveCostPrice($obj, $idprod);
+		if ($costPrice !== null) {
+			$_POST['buying_price'] = price($costPrice);
 		}
 
 		return true;
@@ -384,11 +448,15 @@ class ActionsPriceList
 			}
 
 			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			if ($obj === -1 && $pricelist->error) {
+				setEventMessage($langs->trans($pricelist->error), 'errors');
+				continue;
+			}
 			if (is_int($obj)) {
 				continue;
 			}
 
-			$values = $this->getLinePriceValues($obj, $line);
+			$values = $this->getLinePriceValues($obj, $line, (int) $line->fk_product);
 			$res = $object->updateline(
 				$line->id,
 				$line->description,
@@ -440,11 +508,15 @@ class ActionsPriceList
 			}
 
 			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			if ($obj === -1 && $pricelist->error) {
+				setEventMessage($langs->trans($pricelist->error), 'errors');
+				continue;
+			}
 			if (is_int($obj)) {
 				continue;
 			}
 
-			$values = $this->getLinePriceValues($obj, $line);
+			$values = $this->getLinePriceValues($obj, $line, (int) $line->fk_product);
 			$res = $object->updateline(
 				$line->id,
 				$values['pu'],
@@ -496,11 +568,15 @@ class ActionsPriceList
 			}
 
 			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			if ($obj === -1 && $pricelist->error) {
+				setEventMessage($langs->trans($pricelist->error), 'errors');
+				continue;
+			}
 			if (is_int($obj)) {
 				continue;
 			}
 
-			$values = $this->getLinePriceValues($obj, $line);
+			$values = $this->getLinePriceValues($obj, $line, (int) $line->fk_product);
 			$res = $object->updateline(
 				$line->id,
 				$line->desc,
@@ -553,11 +629,15 @@ class ActionsPriceList
 			}
 
 			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			if ($obj === -1 && $pricelist->error) {
+				setEventMessage($langs->trans($pricelist->error), 'errors');
+				continue;
+			}
 			if (is_int($obj)) {
 				continue;
 			}
 
-			$values = $this->getLinePriceValues($obj, $line);
+			$values = $this->getLinePriceValues($obj, $line, (int) $line->fk_product);
 			$res = $object->updateline(
 				$line->id,
 				$this->getLineDescription($line),
@@ -590,11 +670,12 @@ class ActionsPriceList
 	/**
 	 * Return line price values.
 	 *
-	 * @param stdClass $obj  Price row
-	 * @param object   $line Line object
+	 * @param stdClass $obj    Price row
+	 * @param object   $line   Line object
+	 * @param int      $idprod Product id
 	 * @return array<string,mixed>
 	 */
-	private function getLinePriceValues($obj, $line)
+	private function getLinePriceValues($obj, $line, $idprod)
 	{
 		$pu = $this->getLineSubprice($line);
 		$remisePercent = isset($line->remise_percent) ? $line->remise_percent : 0;
@@ -605,8 +686,9 @@ class ActionsPriceList
 		}
 
 		$pa = isset($line->pa_ht) ? $line->pa_ht : null;
-		if (dol_strlen($obj->cost_price)) {
-			$pa = price($obj->cost_price);
+		$costPrice = $this->getEffectiveCostPrice($obj, $idprod);
+		if ($costPrice !== null) {
+			$pa = price($costPrice);
 		}
 
 		return array(
@@ -614,6 +696,26 @@ class ActionsPriceList
 			'remise_percent' => $remisePercent,
 			'pa_ht' => $pa,
 		);
+	}
+
+	/**
+	 * Return the row cost price, honoring the native product cost mode.
+	 *
+	 * @param stdClass $obj    Price row
+	 * @param int      $idprod Product id
+	 * @return float|null
+	 */
+	private function getEffectiveCostPrice($obj, $idprod)
+	{
+		$pricelist = new PriceList($this->db);
+		if (!empty($obj->use_product_cost_price)) {
+			return $pricelist->getProductCostPrice($idprod);
+		}
+		if (dol_strlen($obj->cost_price)) {
+			return (float) price2num($obj->cost_price);
+		}
+
+		return null;
 	}
 
 	/**
@@ -709,20 +811,4 @@ class ActionsPriceList
 		return $soc;
 	}
 
-	/**
-	 * Check a Dolibarr right with old and new APIs.
-	 *
-	 * @param User   $user   User
-	 * @param string $module Module key
-	 * @param string $right  Right key
-	 * @return bool
-	 */
-	private function hasRight($user, $module, $right)
-	{
-		if (method_exists($user, 'hasRight')) {
-			return (bool) $user->hasRight($module, $right);
-		}
-
-		return !empty($user->rights->$module->$right);
-	}
 }

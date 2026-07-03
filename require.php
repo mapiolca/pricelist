@@ -7,6 +7,6 @@ if (false === (@include '../main.inc.php')) {
     }
 }
 
-if (!$conf->pricelist->enabled) {
+if (!isModEnabled('pricelist')) {
     accessforbidden();
 }

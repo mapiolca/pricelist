@@ -1,7 +1,11 @@
-create table llx_pricelist
+create table llx_pricelist_log
 (
     rowid               integer AUTO_INCREMENT PRIMARY KEY,
     entity              integer DEFAULT 1 NOT NULL,
+    fk_pricelist        integer NOT NULL,
+    datec               datetime NOT NULL,
+    fk_user             integer DEFAULT NULL,
+    change_type         varchar(16) NOT NULL,
     fk_product          integer NOT NULL,
     fk_soc              integer DEFAULT NULL,
     fk_cat              integer DEFAULT NULL,
@@ -14,6 +18,5 @@ create table llx_pricelist
     tx_discount         double DEFAULT NULL,
     cost_price          double DEFAULT NULL,
     use_product_cost_price tinyint DEFAULT 0 NOT NULL,
-    fk_user_creation    integer NOT NULL,
     import_key          varchar(14) DEFAULT NULL
 ) ENGINE=innodb;

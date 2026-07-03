@@ -23,6 +23,7 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/price.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 $id = GETPOST('id');
 $ref = GETPOST('ref');
@@ -31,11 +32,16 @@ $confirm = GETPOST('confirm');
 $socid = GETPOST('socid');
 $catid = GETPOST('catid');
 $catid_propal = GETPOST('catid_propal');
+$catid_order = GETPOST('catid_order');
+$catid_invoice = GETPOST('catid_invoice');
 $catid_contract = GETPOST('catid_contract');
 $qty = GETPOST('qty');
 $price = GETPOST('price');
+$price_ttc = GETPOST('price_ttc');
+$price_input_mode = GETPOST('price_input_mode', 'aZ09');
 $tx_discount = GETPOST('tx_discount');
 $cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
+$use_product_cost_price = GETPOSTINT('use_product_cost_price');
 $lineid = GETPOST('lineid');
 $linesid = GETPOST('linesid', 'array');
 
@@ -58,6 +64,9 @@ $res = $object->fetch($id, $ref);
 if ($res <= 0) {
     dol_print_error($db);
 }
+if (!pricelistCanReadPrices($user, (int) $object->type)) {
+    accessforbidden();
+}
 
 $pricelist = new PriceList($db);
 
@@ -73,16 +82,17 @@ $langs->loadLangs(array('products', 'categories', 'pricelist@pricelist'));
 
 $form = new Form($db);
 
-if ($user->rights->produit->supprimer or $user->rights->service->supprimer) {
-    $arrayofjs = array('/pricelist/js/delete.js');
-} else {
-    $arrayofjs = '';
+$arrayofjs = array();
+if (pricelistCanWritePrices($user, (int) $object->type)) {
+    $arrayofjs[] = '/pricelist/js/delete.js';
 }
+$arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
 
 $title = $langs->trans('CardProduct'.$object->type).' '.$object->label;
 llxHeader('', $title, '', '', '', '', $arrayofjs);
 
 $head = product_prepare_head($object, $user);
+$head = pricelistEnsureObjectHeadTab($head, 'product', (int) $object->id);
 $picto = ($object->type == 1 ? 'service' : 'product');
 
 dol_fiche_head($head, 'pricelist', $title, 0, $picto);
