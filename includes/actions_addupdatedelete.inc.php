@@ -232,13 +232,9 @@ if ($action == 'add_confirm') {
 		if ($res < 0) {
 			setEventMessages($pricelist->error, $pricelist->errors, 'errors');
 		} else {
-			$qty = '';
-			$price = '';
-			$price_ttc = '';
-			$price_input_mode = '';
-			$tx_discount = '';
-			$cost_price = '';
-			$use_product_cost_price = 0;
+			setEventMessages($langs->trans('RecordSaved'), null, 'mesgs');
+			header('Location: '.pricelist_get_redirect_url($object, isset($type) ? $type : ''));
+			exit;
 		}
 	}
 
