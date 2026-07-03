@@ -123,6 +123,61 @@ class ActionsPriceList
 	}
 
 	/**
+	 * Ensure the product price list tab is available when the descriptor tab
+	 * condition is filtered by Dolibarr's eval rules.
+	 *
+	 * @param array<string,mixed> $parameters  Hook parameters
+	 * @param object             $object      Current object
+	 * @param string             $action      Current action
+	 * @param HookManager        $hookmanager Hook manager
+	 * @return int
+	 */
+	public function completeTabsHead($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs, $user;
+
+		$context = isset($parameters['currentcontext']) ? $parameters['currentcontext'] : '';
+		$mode = isset($parameters['mode']) ? $parameters['mode'] : '';
+		$filterorigmodule = isset($parameters['filterorigmodule']) ? $parameters['filterorigmodule'] : '';
+		if ($mode != 'add' || $filterorigmodule != 'external') {
+			return 0;
+		}
+		if (!is_object($object) || empty($object->id)) {
+			return 0;
+		}
+		if ($context !== '' && !in_array('productcard', explode(':', $context))) {
+			return 0;
+		}
+		if (isset($object->element) && $object->element != 'product') {
+			return 0;
+		}
+
+		$productType = isset($object->type) ? (int) $object->type : null;
+		if (!pricelistCanReadPrices($user, $productType)) {
+			return 0;
+		}
+
+		$head = isset($parameters['head']) && is_array($parameters['head']) ? $parameters['head'] : array();
+		foreach ($head as $tab) {
+			if (isset($tab[2]) && $tab[2] == 'pricelist') {
+				return 0;
+			}
+		}
+
+		$langs->load('pricelist@pricelist');
+		$this->results = array(
+			array(
+				dol_buildpath('/pricelist/product.php', 1).'?id='.(int) $object->id,
+				$langs->trans('PriceLists'),
+				'pricelist',
+			),
+		);
+		$hookmanager->resArray = $this->results;
+
+		return 0;
+	}
+
+	/**
 	 * Add mass price refresh button.
 	 *
 	 * @param array<string,mixed> $parameters Hook parameters

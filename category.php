@@ -109,7 +109,7 @@ llxHeader('', $langs->trans('Categories'), '', '', '', '', $arrayofjs);
 $title = $langs->trans($categorytypes[$type]['title']);
 
 $head = categories_prepare_head($object, $categorytypes[$type]['root']);
-dol_fiche_head($head, 'pricelist', $title, 0, 'category');
+dol_fiche_head($head, '', $title, 0, 'category');
 
 $object->next_prev_filter = ' type = '.$object->type;
 $object->ref = $object->label;
