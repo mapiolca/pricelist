@@ -173,17 +173,17 @@ if (!function_exists('pricelist_get_history_tooltip')) {
 			}
 		}
 
-		$html = '<table class="nobordernopadding centpercent">';
-		$html .= '<tr class="liste_titre"><td>'.$langs->trans('Date').'</td><td>'.$langs->trans('PriceListHistoryNewValue').'</td><td>'.$langs->trans('PriceListHistoryDiff').'</td><td>'.$langs->trans('User').'</td></tr>';
+		$html = '<table class=\'nobordernopadding centpercent\'>';
+		$html .= '<tr class=\'liste_titre\'><td>'.$langs->trans('Date').'</td><td>'.$langs->trans('PriceListHistoryNewValue').'</td><td>'.$langs->trans('PriceListHistoryDiff').'</td><td>'.$langs->trans('User').'</td></tr>';
 		for ($i = count($history) - 1; $i >= 0; $i--) {
 			$row = $history[$i];
 			$valueInfo = pricelist_get_history_value($row, $langs, $db);
 			$date = dol_print_date($db->jdate($row->datec), 'dayhour');
 			$userLabel = !empty($row->login) ? $row->login : '-';
-			$html .= '<tr class="oddeven">';
+			$html .= '<tr class=\'oddeven\'>';
 			$html .= '<td>'.$date.'</td>';
 			$html .= '<td>'.$valueInfo['label'].'</td>';
-			$html .= '<td class="right">'.$diffByRow[(int) $row->rowid].'</td>';
+			$html .= '<td class=\'right\'>'.$diffByRow[(int) $row->rowid].'</td>';
 			$html .= '<td>'.dol_escape_htmltag($userLabel).'</td>';
 			$html .= '</tr>';
 		}
@@ -397,7 +397,7 @@ if ($list !== null) {
 		print '<td class="right">'.$userstatic->getLoginUrl(1).'</td>';
 
 		$tooltip = pricelist_get_history_tooltip($db, $obj, $langs);
-		print '<td class="center"><span class="classfortooltip" title="'.dol_escape_htmltag($tooltip, 1).'">'.img_info($langs->trans('PriceListHistory')).'</span></td>';
+		print '<td class="center">'.$form->textwithpicto('', $tooltip, 1, 'info', '', 1).'</td>';
 
 		$rowCanWrite = pricelistCanWritePrices($user, is_object($product) && isset($product->type) ? (int) $product->type : null);
 		if ($canCreatePriceList || $canDeletePriceList) {
@@ -443,7 +443,14 @@ if ($action == 'add' || $action == 'edit_price') {
 
 	$isEditPriceList = ($action == 'edit_price');
 	$title = $isEditPriceList ? $langs->trans("EditPriceList") : $langs->trans("NewPriceOffer");
-	print_fiche_titre($title, '', '');
+	$modalId = 'pricelist-line-dialog';
+	$useModalDialog = !empty($conf->use_javascript_ajax);
+	$cleanUrl = pricelist_get_redirect_url($object, isset($type) ? $type : '');
+	if ($useModalDialog) {
+		print '<div id="'.dol_escape_htmltag($modalId).'" title="'.dol_escape_htmltag($title).'" style="display:none">';
+	} else {
+		print_fiche_titre($title, '', '');
+	}
 
 	$formProduct = null;
 	$formProductId = pricelist_get_requested_product_id($object, $productid);
@@ -530,7 +537,14 @@ if ($action == 'add' || $action == 'edit_price') {
 
 	print '<tr>';
 	print '<td class="fieldrequired">'.$langs->trans('FromQtyLong').'</td>';
-	print '<td colspan="2"><input type="text" name="qty" value="'.dol_escape_htmltag($qty).'"></td>';
+	print '<td colspan="2">';
+	if ($isEditPriceList) {
+		print '<input type="hidden" name="qty" value="'.dol_escape_htmltag($qty).'">';
+		print '<span class="opacitymedium">'.price($qty).'</span>';
+	} else {
+		print '<input type="text" name="qty" value="'.dol_escape_htmltag($qty).'">';
+	}
+	print '</td>';
 	print '</tr>';
 
 	print '<tr class="fieldrequired">';
@@ -560,4 +574,20 @@ if ($action == 'add' || $action == 'edit_price') {
 	print '<input type="submit" class="button button-cancel" name="cancel" value="'.$langs->trans("Cancel").'"></div>';
 
 	print '</form>';
+
+	if ($useModalDialog) {
+		print '</div>';
+		print '<script nonce="'.getNonce().'">';
+		print 'jQuery(function($) {';
+		print 'var $dialog = $("#'.dol_escape_js($modalId).'");';
+		print 'if (!$dialog.length) { return; }';
+		print 'if (!$.ui || !$.ui.dialog) { $dialog.show(); return; }';
+		print 'var cleanUrl = "'.dol_escape_js($cleanUrl).'";';
+		print 'var submitted = false;';
+		print '$dialog.find("form").on("submit", function() { submitted = true; });';
+		print 'var dialogWidth = Math.min(Math.max($(window).width() - 40, 320), 940);';
+		print '$dialog.dialog({autoOpen: true, modal: true, width: dialogWidth, close: function() { if (!submitted) { window.location.href = cleanUrl; } }});';
+		print '});';
+		print '</script>';
+	}
 }

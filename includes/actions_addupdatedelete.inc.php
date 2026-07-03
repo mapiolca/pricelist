@@ -248,6 +248,7 @@ if ($action == 'update_confirm') {
 		setEventMessage($langs->trans('ErrorRecordNotFound'), 'errors');
 		$action = 'edit_price';
 	} else {
+		$qty = $editpricelist->from_qty;
 		$submittedProductId = pricelist_get_requested_product_id($object, $productid);
 		if (!pricelist_check_write_right_for_product($db, $user, $submittedProductId)) {
 			accessforbidden();
