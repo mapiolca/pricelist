@@ -63,7 +63,7 @@ class ActionsPriceList
 		}
 
 		if ($context == 'ordercard' && $this->hasRight($user, 'commande', 'creer')) {
-			$this->handleAddOrUpdateLine($object, $action, $client, null, 'OrderLine', '/commande/class/commande.class.php');
+			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'OrderLine', '/commande/class/commande.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updateOrderLines($object, $client);
 			}
@@ -73,7 +73,7 @@ class ActionsPriceList
 				$this->updatePropalLines($object, $client);
 			}
 		} elseif (in_array($context, array('invoicecard', 'invoicereccard')) && $this->hasRight($user, 'facture', 'creer')) {
-			$this->handleAddOrUpdateLine($object, $action, $client, null, 'FactureLigne', '/compta/facture/class/facture.class.php');
+			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'FactureLigne', '/compta/facture/class/facture.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updateInvoiceLines($object, $client);
 			}
@@ -383,7 +383,7 @@ class ActionsPriceList
 				continue;
 			}
 
-			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
 			if (is_int($obj)) {
 				continue;
 			}
@@ -495,7 +495,7 @@ class ActionsPriceList
 				continue;
 			}
 
-			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty);
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
 			if (is_int($obj)) {
 				continue;
 			}
