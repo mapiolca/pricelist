@@ -349,10 +349,10 @@ class PriceList extends CommonObject
 			return -1;
 		}
 
-		$entity = $this->resolveEntity($sourceObject);
+		$entities = $this->getPriceEntityCandidates($sourceObject, $product);
 		$sourceCategory = $this->getSourceObjectCategoryDefinition($sourceObject);
 		if (!empty($sourceCategory['field']) && !empty($sourceCategory['ids'])) {
-			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, $sourceCategory['field'], $sourceCategory['ids'], $entity);
+			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, $sourceCategory['field'], $sourceCategory['ids'], $entities);
 			if ($result) {
 				return $result;
 			}
@@ -367,7 +367,7 @@ class PriceList extends CommonObject
 				(int) $idproduct,
 				$qty,
 				array("t.fk_soc = ".$socid),
-				$entity,
+				$entities,
 				"t.from_qty DESC",
 				"fk_soc"
 			);
@@ -381,7 +381,7 @@ class PriceList extends CommonObject
 
 		$customerCategories = $this->getCustomerCategoryIds($socid);
 		if (!empty($customerCategories)) {
-			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, 'fk_cat', $customerCategories, $entity);
+			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, 'fk_cat', $customerCategories, $entities);
 			if ($result) {
 				return $result;
 			}
@@ -394,7 +394,7 @@ class PriceList extends CommonObject
 			(int) $idproduct,
 			$qty,
 			array(),
-			$entity,
+			$entities,
 			"t.from_qty DESC"
 		);
 		if ($result) {
@@ -504,6 +504,27 @@ class PriceList extends CommonObject
 		}
 
 		return 1;
+	}
+
+	/**
+	 * Return entity candidates used to resolve a price rule.
+	 *
+	 * The source object entity stays first. The product entity is used as a
+	 * fallback for shared products whose price list rows belong to the owner
+	 * entity.
+	 *
+	 * @param ?object $sourceObject Source object
+	 * @param Product $product      Product object
+	 * @return array<int,int>
+	 */
+	private function getPriceEntityCandidates($sourceObject, $product)
+	{
+		$entities = array($this->resolveEntity($sourceObject));
+		if (!empty($product->entity)) {
+			$entities[] = (int) $product->entity;
+		}
+
+		return $this->normalizeIdList($entities);
 	}
 
 	/**
@@ -649,10 +670,10 @@ class PriceList extends CommonObject
 	 * @param float|int  $qty       Quantity
 	 * @param string     $field     Category field
 	 * @param array<int> $ids       Category ids
-	 * @param int        $entity    Entity id
+	 * @param array<int,int> $entities Entity ids, ordered by priority
 	 * @return int|stdClass
 	 */
-	private function fetchBestPriceByCategory($idproduct, $qty, $field, $ids, $entity)
+	private function fetchBestPriceByCategory($idproduct, $qty, $field, $ids, $entities)
 	{
 		$ids = $this->normalizeIdList($ids);
 		if (empty($ids)) {
@@ -663,7 +684,7 @@ class PriceList extends CommonObject
 			$idproduct,
 			$qty,
 			array("t.".$field." IN (".implode(',', $ids).")"),
-			$entity,
+			$entities,
 			"t.from_qty DESC, t.price ASC",
 			$field
 		);
@@ -675,12 +696,38 @@ class PriceList extends CommonObject
 	 * @param int           $idproduct   Product id
 	 * @param float|int     $qty         Quantity
 	 * @param array<string> $where       Additional where clauses
+	 * @param array<int,int> $entities   Entity ids, ordered by priority
+	 * @param string        $order       SQL order
+	 * @param string        $exceptField Target field allowed to be filled
+	 * @return int|stdClass
+	 */
+	private function fetchBestPrice($idproduct, $qty, $where, $entities, $order, $exceptField = '')
+	{
+		foreach ($this->normalizeIdList($entities) as $entity) {
+			$result = $this->fetchBestPriceForEntity($idproduct, $qty, $where, $entity, $order, $exceptField);
+			if ($result) {
+				return $result;
+			}
+			if ($result < 0) {
+				return -1;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Fetch the best price for one entity and additional where clauses.
+	 *
+	 * @param int           $idproduct   Product id
+	 * @param float|int     $qty         Quantity
+	 * @param array<string> $where       Additional where clauses
 	 * @param int           $entity      Entity id
 	 * @param string        $order       SQL order
 	 * @param string        $exceptField Target field allowed to be filled
 	 * @return int|stdClass
 	 */
-	private function fetchBestPrice($idproduct, $qty, $where, $entity, $order, $exceptField = '')
+	private function fetchBestPriceForEntity($idproduct, $qty, $where, $entity, $order, $exceptField = '')
 	{
 		$sql = "SELECT price, tx_discount, cost_price, from_qty";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
