@@ -89,22 +89,35 @@ if (!function_exists('pricelistCanReadPrices')) {
 	/**
 	 * Check if a user can read product/service prices.
 	 *
-	 * @param User $user User
+	 * @param User     $user        User
+	 * @param int|null $productType Product type: 0 product, 1 service, null unknown
 	 * @return bool
 	 */
-	function pricelistCanReadPrices($user)
+	function pricelistCanReadPrices($user, $productType = null)
 	{
 		if (!empty($user->admin)) {
 			return true;
 		}
-		if (!$user->hasRight('produit', 'lire') && !$user->hasRight('service', 'lire')) {
-			return false;
-		}
-		if (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS', 0) <= 0) {
-			return true;
+
+		if (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS', 0) > 0) {
+			if ($productType === 1) {
+				return $user->hasRight('service', 'service_advance', 'read_prices');
+			}
+			if ($productType === 0) {
+				return $user->hasRight('product', 'product_advance', 'read_prices');
+			}
+
+			return $user->hasRight('product', 'product_advance', 'read_prices') || $user->hasRight('service', 'service_advance', 'read_prices');
 		}
 
-		return $user->hasRight('produit', 'product_advance', 'read_prices');
+		if ($productType === 1) {
+			return $user->hasRight('service', 'read') || $user->hasRight('service', 'lire');
+		}
+		if ($productType === 0) {
+			return $user->hasRight('product', 'read') || $user->hasRight('produit', 'lire');
+		}
+
+		return $user->hasRight('product', 'read') || $user->hasRight('produit', 'lire') || $user->hasRight('service', 'read') || $user->hasRight('service', 'lire');
 	}
 }
 

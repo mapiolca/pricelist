@@ -16,6 +16,7 @@
  */
 
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/ajax.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
 
@@ -482,38 +483,39 @@ if ($action == 'add' || $action == 'edit_price') {
 		print '<td>'.$langs->trans('ThirdParty').'</td>';
 		print '<td colspan="2">';
 		print $form->select_company($socid, 'socid', 's.client = 1 OR s.client = 2 OR s.client = 3', 1);
+		print ajax_combobox('socid');
 		print '</td>';
 		print '</tr>';
 
 		if (isModEnabled('categorie')) {
 			print '<tr>';
 			print '<td>'.$langs->trans('CustomersCategoriesShort').'</td>';
-			print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('customer'), $catid, 'catid').'</td>';
+			print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('customer'), $catid, 'catid').ajax_combobox('catid').'</td>';
 			print '</tr>';
 
 			if ($showPropalCategories) {
 				print '<tr>';
 				print '<td>'.$langs->trans('PropalCategory').'</td>';
-				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('propal'), $catid_propal, 'catid_propal').'</td>';
+				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('propal'), $catid_propal, 'catid_propal').ajax_combobox('catid_propal').'</td>';
 				print '</tr>';
 			}
 
 			if ($showOrderInvoiceCategories) {
 				print '<tr>';
 				print '<td>'.$langs->trans('OrderCategory').'</td>';
-				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('order'), $catid_order, 'catid_order').'</td>';
+				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('order'), $catid_order, 'catid_order').ajax_combobox('catid_order').'</td>';
 				print '</tr>';
 
 				print '<tr>';
 				print '<td>'.$langs->trans('InvoiceCategory').'</td>';
-				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('invoice'), $catid_invoice, 'catid_invoice').'</td>';
+				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('invoice'), $catid_invoice, 'catid_invoice').ajax_combobox('catid_invoice').'</td>';
 				print '</tr>';
 			}
 
 			if ($showContractCategories) {
 				print '<tr>';
 				print '<td>'.$langs->trans('ContractCategory').'</td>';
-				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('contract'), $catid_contract, 'catid_contract').'</td>';
+				print '<td colspan="2">'.$form->select_all_categories(pricelist_get_category_type_id('contract'), $catid_contract, 'catid_contract').ajax_combobox('catid_contract').'</td>';
 				print '</tr>';
 			}
 		}
@@ -522,6 +524,7 @@ if ($action == 'add' || $action == 'edit_price') {
 		print '<td class="fieldrequired">'.$langs->trans('ProductOrService').'</td><td>';
 		$limit_size = version_compare(DOL_VERSION, '21.0.0') >= 0 ? getDolGlobalInt('PRODUIT_LIMIT_SIZE') : $conf->product->limit_size;
 		$form->select_produits($productid, 'productid', '', $limit_size, 0, 1, 2, '', 1);
+		print ajax_combobox('productid');
 		print '</td></tr>';
 	}
 
@@ -543,7 +546,7 @@ if ($action == 'add' || $action == 'edit_price') {
 
 	print '<tr>';
 	print '<td>'.$langs->trans('UseProductCostPrice').'</td>';
-	print '<td colspan="2">'.$form->selectyesno('use_product_cost_price', (int) $use_product_cost_price, 1).'</td>';
+	print '<td colspan="2">'.$form->selectyesno('use_product_cost_price', (int) $use_product_cost_price, 1).ajax_combobox('use_product_cost_price').'</td>';
 	print '</tr>';
 
 	print '<tr>';

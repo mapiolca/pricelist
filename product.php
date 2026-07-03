@@ -64,7 +64,7 @@ $res = $object->fetch($id, $ref);
 if ($res <= 0) {
     dol_print_error($db);
 }
-if (!pricelistCanReadPrices($user)) {
+if (!pricelistCanReadPrices($user, (int) $object->type)) {
     accessforbidden();
 }
 

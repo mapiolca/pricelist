@@ -63,22 +63,22 @@ class ActionsPriceList
 			return 0;
 		}
 
-		if ($context == 'ordercard' && $user->hasRight('commande', 'creer')) {
+		if ($context == 'ordercard' && (!empty($user->admin) || $user->hasRight('commande', 'creer'))) {
 			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'OrderLine', '/commande/class/commande.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updateOrderLines($object, $client);
 			}
-		} elseif ($context == 'propalcard' && $user->hasRight('propal', 'creer')) {
+		} elseif ($context == 'propalcard' && (!empty($user->admin) || $user->hasRight('propal', 'creer'))) {
 			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'PropaleLigne', '/comm/propal/class/propal.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updatePropalLines($object, $client);
 			}
-		} elseif (in_array($context, array('invoicecard', 'invoicereccard')) && $user->hasRight('facture', 'creer')) {
+		} elseif (in_array($context, array('invoicecard', 'invoicereccard')) && (!empty($user->admin) || $user->hasRight('facture', 'creer'))) {
 			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'FactureLigne', '/compta/facture/class/facture.class.php');
 			if ($action == 'altaupdatelines') {
 				$this->updateInvoiceLines($object, $client);
 			}
-		} elseif ($context == 'contractcard' && $user->hasRight('contrat', 'creer')) {
+		} elseif ($context == 'contractcard' && (!empty($user->admin) || $user->hasRight('contrat', 'creer'))) {
 			$this->handleContractAddOrUpdateLine($object, $action, $client);
 			if ($action == 'altaupdatelines') {
 				$this->updateContractLines($object, $client);
@@ -137,10 +137,10 @@ class ActionsPriceList
 
 		$context = isset($parameters['currentcontext']) ? $parameters['currentcontext'] : '';
 		if (
-			($context == 'ordercard' && $user->hasRight('commande', 'creer'))
-			|| ($context == 'propalcard' && $user->hasRight('propal', 'creer'))
-			|| ($context == 'contractcard' && $user->hasRight('contrat', 'creer'))
-			|| (in_array($context, array('invoicecard', 'invoicereccard')) && $user->hasRight('facture', 'creer'))
+			($context == 'ordercard' && (!empty($user->admin) || $user->hasRight('commande', 'creer')))
+			|| ($context == 'propalcard' && (!empty($user->admin) || $user->hasRight('propal', 'creer')))
+			|| ($context == 'contractcard' && (!empty($user->admin) || $user->hasRight('contrat', 'creer')))
+			|| (in_array($context, array('invoicecard', 'invoicereccard')) && (!empty($user->admin) || $user->hasRight('facture', 'creer')))
 		) {
 			print '<a class="butAction" href="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'&action=altaupdatelines&token='.newToken().'">'.$langs->trans('PriceListUpdate').'</a>';
 		}

@@ -154,10 +154,13 @@ class modPriceList extends DolibarrModules
         // 'stock'            to add a tab in stock view
         // 'thirdparty'       to add a tab in third party view
         // 'user'             to add a tab in user view
-	        $readPricesCondition = '($user->admin || (($user->hasRight("produit", "lire") || $user->hasRight("service", "lire")) && (getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) <= 0 || $user->hasRight("produit", "product_advance", "read_prices"))))';
+	        $readProductPricesCondition = '((getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) > 0 && $user->hasRight("product", "product_advance", "read_prices")) || (getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) <= 0 && ($user->hasRight("product", "read") || $user->hasRight("produit", "lire"))))';
+	        $readServicePricesCondition = '((getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) > 0 && $user->hasRight("service", "service_advance", "read_prices")) || (getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) <= 0 && ($user->hasRight("service", "read") || $user->hasRight("service", "lire"))))';
+	        $readPricesCondition = '(!empty($user->admin) || '.$readProductPricesCondition.' || '.$readServicePricesCondition.')';
+	        $readProductTabPricesCondition = '(!empty($user->admin) || ((!isset($object->type) || (int) $object->type == 0) && '.$readProductPricesCondition.') || (isset($object->type) && (int) $object->type == 1 && '.$readServicePricesCondition.'))';
 	        $contractCategoryCondition = '(getDolGlobalInt("PRICELIST_ENABLE_CONTRACT_CATEGORIES", 0) > 0)';
 	        $this->tabs = array(
-	            'product:+pricelist:PriceLists:pricelist@pricelist:'.$readPricesCondition.':/pricelist/product.php?id=__ID__',
+	            'product:+pricelist:PriceLists:pricelist@pricelist:'.$readProductTabPricesCondition.':/pricelist/product.php?id=__ID__',
 	            'thirdparty:+pricelist:PriceLists:pricelist@pricelist:($object->client && '.$readPricesCondition.'):/pricelist/customer.php?id=__ID__',
 	            'categories_customer:+pricelist:PriceLists:pricelist@pricelist:'.$readPricesCondition.':/pricelist/category.php?id=__ID__&type=customer',
 	            'categories_propal:+pricelist:PriceLists:pricelist@pricelist:(version_compare(DOL_VERSION, \'23.0.0\', \'>=\') && '.$readPricesCondition.'):/pricelist/category.php?id=__ID__&type=propal',

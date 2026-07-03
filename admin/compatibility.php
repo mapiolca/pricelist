@@ -8,7 +8,7 @@ dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 $langs->loadLangs(array('admin', 'pricelist@pricelist'));
 
-if (!$user->admin) {
+if (empty($user->admin)) {
 	accessforbidden();
 }
 
