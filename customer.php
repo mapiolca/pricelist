@@ -22,21 +22,33 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/price.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 $id = GETPOST('id');
 $action = GETPOST('action');
 $confirm = GETPOST('confirm');
 $productid = GETPOST('productid');
+$catid = GETPOST('catid');
+$catid_propal = GETPOST('catid_propal');
+$catid_order = GETPOST('catid_order');
+$catid_invoice = GETPOST('catid_invoice');
+$catid_contract = GETPOST('catid_contract');
 $qty = GETPOST('qty');
 $price = GETPOST('price');
+$price_ttc = GETPOST('price_ttc');
+$price_input_mode = GETPOST('price_input_mode', 'aZ09');
 $tx_discount = GETPOST('tx_discount');
 $cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
+$use_product_cost_price = GETPOSTINT('use_product_cost_price');
 $lineid = GETPOST('lineid');
 $linesid = GETPOST('linesid', 'array');
 
 $pricelist = new PriceList($db);
 $object = new Societe($db);
 $object->fetch($id);
+if (!pricelistCanReadPrices($user)) {
+    accessforbidden();
+}
 
 /*
  * Actions
@@ -51,11 +63,11 @@ $langs->load('pricelist@pricelist');
 
 $form = new Form($db);
 
-if ($user->rights->produit->supprimer or $user->rights->service->supprimer) {
-    $arrayofjs = array('/pricelist/js/delete.js');
-} else {
-    $arrayofjs = '';
+$arrayofjs = array();
+if (pricelistCanWritePrices($user)) {
+    $arrayofjs[] = '/pricelist/js/delete.js';
 }
+$arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
 
 llxHeader('', $langs->trans('ThirdParty'), '', '', '', '', $arrayofjs);
 

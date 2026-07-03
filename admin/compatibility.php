@@ -4,6 +4,7 @@
 require_once '../require.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 dol_include_once('/pricelist/class/pricelistcompatibility.class.php');
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 $langs->loadLangs(array('admin', 'pricelist@pricelist'));
 
@@ -17,6 +18,7 @@ llxHeader('', $langs->trans('PriceListCompatibility'));
 
 $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.$langs->trans("BackToModuleList").'</a>';
 print load_fiche_titre($langs->trans('PriceListCompatibility'), $linkback);
+print dol_get_fiche_head(pricelistAdminPrepareHead(), 'compatibility', $langs->trans('PriceListSetup'), -1, 'currency');
 
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><td class="titlefield">'.$langs->trans('Parameter').'</td><td>'.$langs->trans('Value').'</td></tr>';
@@ -48,5 +50,7 @@ foreach (PriceListCompatibility::getFeatures() as $code => $feature) {
 }
 
 print '</table>';
+
+print dol_get_fiche_end();
 
 llxFooter();

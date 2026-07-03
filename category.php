@@ -23,6 +23,8 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/categories.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/price.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
+dol_include_once('/pricelist/class/pricelistcompatibility.class.php');
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 $id=GETPOST('id');
 $label=GETPOST('label', 'alpha');
@@ -30,29 +32,55 @@ $type = GETPOST('type', 'aZ09');
 $action = GETPOST('action');
 $confirm = GETPOST('confirm');
 $productid = GETPOST('productid');
+$socid = GETPOST('socid');
+$catid = GETPOST('catid');
+$catid_propal = GETPOST('catid_propal');
+$catid_order = GETPOST('catid_order');
+$catid_invoice = GETPOST('catid_invoice');
+$catid_contract = GETPOST('catid_contract');
 $qty = GETPOST('qty');
 $price = GETPOST('price');
+$price_ttc = GETPOST('price_ttc');
+$price_input_mode = GETPOST('price_input_mode', 'aZ09');
 $tx_discount = GETPOST('tx_discount');
 $cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
+$use_product_cost_price = GETPOSTINT('use_product_cost_price');
 $lineid = GETPOST('lineid');
 $linesid = GETPOST('linesid', 'array');
 
 $pricelist = new PriceList($db);
 $object = new Categorie($db);
 $object->fetch($id, $label);
+if (!pricelistCanReadPrices($user)) {
+	accessforbidden();
+}
 
 $categorytypes = array(
 	'customer' => array('id' => (defined('Categorie::TYPE_CUSTOMER') ? Categorie::TYPE_CUSTOMER : 2), 'title' => 'CustomersCategoryShort', 'root' => 'customer'),
-	'propal' => array('id' => 23, 'title' => 'PropalCategory', 'root' => 'propal'),
-	'contract' => array('id' => 450022, 'title' => 'ContractCategory', 'root' => 'contract'),
 );
+if (pricelistIsPropalCategoryAvailable()) {
+	$categorytypes['propal'] = array('id' => 23, 'title' => 'PropalCategory', 'root' => 'propal');
+}
+if (pricelistIsOrderInvoiceCategoryAvailable()) {
+	$categorytypes['order'] = array('id' => 16, 'title' => 'OrderCategory', 'root' => 'order');
+	$categorytypes['invoice'] = array('id' => 17, 'title' => 'InvoiceCategory', 'root' => 'invoice');
+}
+if (pricelistIsContractCategoryAvailable()) {
+	$categorytypes['contract'] = array('id' => 450022, 'title' => 'ContractCategory', 'root' => 'contract');
+}
 if (empty($type)) {
 	$type = 'customer';
 }
 if (empty($categorytypes[$type])) {
 	accessforbidden();
 }
-if (!empty($object->type) && (int) $object->type !== (int) $categorytypes[$type]['id']) {
+$objecttypeid = -1;
+if (isset($object->type) && is_numeric($object->type)) {
+	$objecttypeid = (int) $object->type;
+} elseif (isset($object->type) && isset($object->MAP_ID[$object->type])) {
+	$objecttypeid = (int) $object->MAP_ID[$object->type];
+}
+if (!empty($object->type) && $objecttypeid !== (int) $categorytypes[$type]['id']) {
 	accessforbidden();
 }
 
@@ -70,11 +98,11 @@ include dol_buildpath('/pricelist/includes/actions_addupdatedelete.inc.php');
 
 $form = new Form($db);
 
-if ($user->rights->produit->supprimer or $user->rights->service->supprimer) {
-    $arrayofjs = array('/pricelist/js/delete.js');
-} else {
-    $arrayofjs = '';
+$arrayofjs = array();
+if (pricelistCanWritePrices($user)) {
+    $arrayofjs[] = '/pricelist/js/delete.js';
 }
+$arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
 
 llxHeader('', $langs->trans('Categories'), '', '', '', '', $arrayofjs);
 

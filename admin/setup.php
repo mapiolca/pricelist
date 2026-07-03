@@ -17,6 +17,7 @@
 
 require_once '../require.php';
 require_once DOL_DOCUMENT_ROOT."/core/lib/admin.lib.php";
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 $langs->loadLangs(array('admin', 'pricelist@pricelist'));
 
@@ -35,6 +36,12 @@ $arrayofparameters = array(
         'type' => 'yesno',
     ),
     'PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING' => array(
+        'type' => 'yesno',
+    ),
+    'PRICELIST_DOCUMENT_CATEGORY_PRIORITY' => array(
+        'type' => 'yesno',
+    ),
+    'PRICELIST_ENABLE_CONTRACT_CATEGORIES' => array(
         'type' => 'yesno',
     ),
 );
@@ -60,15 +67,17 @@ include DOL_DOCUMENT_ROOT.'/core/actions_setmoduleoptions.inc.php';
  * View
  */
 $form = new Form($db);
+$adminToken = newToken();
 
 llxHeader('', $langs->trans('PriceListSetup'));
 
 $linkback = '<a href="'.($backtopage ? $backtopage : DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1').'">'.$langs->trans("BackToModuleList").'</a>';
 
 print load_fiche_titre($langs->trans('PriceListSetup'), $linkback);
+print dol_get_fiche_head(pricelistAdminPrepareHead(), 'settings', $langs->trans('PriceListSetup'), -1, 'currency');
 
 print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
-print '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
+print '<input type="hidden" name="token" value="'.$adminToken.'">';
 print '<input type="hidden" name="action" value="update">';
 
 print '<table class="noborder centpercent">';
@@ -78,9 +87,9 @@ foreach ($arrayofparameters as $key => $val) {
     print '<tr class="oddeven"><td>'.(isset($val['label']) ? $val['label'] : $langs->trans($key)).'</td><td class="right" width="60">';
 
     if (!isset($val['type'])) {
-        print '<input name="'.$key.'" class="flat minwidth200" value="'.$conf->global->$key.'">';
+        print '<input name="'.$key.'" class="flat minwidth200" value="'.dol_escape_htmltag(getDolGlobalString($key)).'">';
     } elseif ($val['type'] == 'yesno') {
-        print $form->selectyesno($key, $conf->global->$key, 1);
+        print $form->selectyesno($key, getDolGlobalInt($key), 1);
     }
 
     print '</td></tr>';
@@ -100,7 +109,7 @@ print '<table class="noborder centpercent">';
 print '<tr class="liste_titre"><td class="titlefieldmiddle">'.$langs->trans("Parameter").'</td><td class="right" width="60">'.$langs->trans("Value").'</td></tr>';
 
 print '<tr class="oddeven"><td>'.$langs->trans('PurgePriceList').'</td><td class="right" width="60">';
-print '<div class="inline-block divButAction"><a class="butAction" href="'.$_SERVER["PHP_SELF"] . '?&action=purge">'.$langs->trans('PurgeAll').'</a></div>';
+print '<div class="inline-block divButAction"><a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=purge&token='.$adminToken.'">'.$langs->trans('PurgeAll').'</a></div>';
 print '</td></tr>';
 
 print '</table>';
@@ -108,5 +117,7 @@ print '</table>';
 if ($action == 'purge') {
     print $form->formconfirm($_SERVER['PHP_SELF'], $langs->trans('PurgeAll'), $langs->trans('ConfirmPurgePriceList'), 'confirm_purge', '', 0, 1);
 }
+
+print dol_get_fiche_end();
 
 llxFooter();

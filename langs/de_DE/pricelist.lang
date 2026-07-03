@@ -1,40 +1,68 @@
 # Config
 Module203105Name=Produkte Staffelpreise
-Module203105Desc=Management für Produktsstaffelpreise 
+Module203105Desc=Management für Produktstaffelpreise
+PriceListSetup=Konfiguration des Staffelpreismoduls
 PriceListCompatibility=Kompatibilität des Staffelpreismoduls
+PRICELIST_CLONE_ON_CLONE_PRODUCT=Staffelpreise beim Klonen eines Produkts kopieren
+PRICELIST_SHOW_PRICES_TTC=Preise inkl. Steuer anzeigen
+PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING=Preis ungleich null beim Hinzufügen eines Produkts nicht überschreiben
+PRICELIST_DOCUMENT_CATEGORY_PRIORITY=Tags/Kategorien des aktuellen Objekts vor Kunden-/Kundenkategoriepreisen priorisieren
+PRICELIST_ENABLE_CONTRACT_CATEGORIES=Von PriceList bereitgestellte Vertrags-Tags/Kategorien aktivieren
+PurgePriceList=Alle Staffelpreise löschen
+PurgeAll=Alle löschen
+ConfirmPurgePriceList=Sind Sie sicher, dass Sie alle Staffelpreise löschen möchten?
+AllPriceListRemoved=Alle Staffelpreise wurden gelöscht
 
 # Main
-PriceList=Staffelpreise
+PriceList=Staffelpreis
 PriceLists=Staffelpreise
 
 # Tab product
 AddPriceList=Tarif eingeben
-NewPriceOffer=Neuer Tarif erstellen
-FromQtyLong=ab Menge(Anzahl)
+EditPriceList=Tarif bearbeiten
+NewPriceOffer=Neuen Tarif erstellen
+FromQtyLong=Ab Menge (Anzahl)
 FromQty=Ab
-AllFieldIsRequired=Alle felder sind Pflichtfeldeer
+AllFieldIsRequired=Alle Felder sind Pflichtfelder
 FillPriceOrDiscountField=Füllen Sie das Feld Preis, Rabatt oder Einstandspreis aus
 CostPriceHT=Einstandspreis (netto)
 CostPrice=Einstandspreis
+UseProductCostPrice=Einstandspreis des Produkts verwenden
+ProductCostPrice=Produkt-Einstandspreis
 PriceHT=Netto Preis
+PriceTTC=Brutto Preis
 AddedBy=Erstellt durch
-PriceOrDiscountRate=Preis HT oder Reduktionsrate
-PropalCategory=Angebotskategorie
-PropalCategoryId=Angebotskategorie ID
-ContractCategory=Vertragskategorie
-ContractCategoryId=Vertragskategorie ID
-PriceListSingleScopeRequired=Wählen Sie nur einen Tarifbereich: Kunde, Kundenkategorie, Angebotskategorie oder Vertragskategorie
+PriceOrDiscountRate=Netto Preis, Brutto Preis oder Rabattsatz
+PropalCategory=Angebots-Tags/Kategorien
+PropalCategoryId=Angebots-Tags/Kategorien ID
+OrderCategory=Auftrags-Tags/Kategorien
+OrderCategoryId=Auftrags-Tags/Kategorien ID
+InvoiceCategory=Rechnungs-Tags/Kategorien
+InvoiceCategoryId=Rechnungs-Tags/Kategorien ID
+ContractCategory=Vertrags-Tags/Kategorien
+ContractCategoryId=Vertrags-Tags/Kategorien ID
+PriceListSingleScopeRequired=Wählen Sie nur einen Tarifbereich: Kunde, Kundenkategorie oder Dokument-Tags/Kategorien
 
-PriceListId=Staffelpreise ID
+PriceListId=Staffelpreis ID
 
-PriceListInsert=Staffelpreise erstellt
+PriceListInsert=Staffelpreis angewendet
 
 DeletePriceList=Preis löschen
-ConfirmDeletePriceList=Sind Sie sicher diesen Preis zu löschen ?
+ConfirmDeletePriceList=Sind Sie sicher, dass Sie diesen Preis löschen möchten?
 
-CanNotDeletePriceList=Staffelpreise kann nicht gelöscht werden : %s
+CanNotDeletePriceList=Staffelpreise können nicht gelöscht werden: %s
 
-PriceListUpdate=Update Price list
+PriceListUpdate=Staffelpreise aktualisieren
+PriceListHistory=Historie
+PriceListHistoryEmpty=Keine Historie verfügbar
+PriceListHistoryNewValue=Neuer Wert
+PriceListHistoryDiff=Abweichung
+PriceListPriorityDocumentFirstBanner=Aktive Regel: Tags/Kategorien des aktuellen Objekts haben Vorrang vor Kunden- und Kundenkategoriepreisen.
+PriceListPriorityCustomerFirstBanner=Aktive Regel: Kunden- und Kundenkategoriepreise haben Vorrang vor Tags/Kategorien des aktuellen Objekts.
+PriceListMinimumPriceWarning=Achtung: Eine oder mehrere vorhandene Zeilen liegen unter dem nativen Mindestverkaufspreis des Produkts und werden nicht angewendet.
+PriceListMinimumPriceWarningLine=Produkt %s, Menge %s: berechneter Preis %s, Mindestpreis %s.
+PriceListBelowMinimumPrice=Der berechnete Preis (%s) liegt unter dem nativen Mindestverkaufspreis des Produkts (%s).
+PriceListBelowMinimumPriceNotApplied=Die gefundene Staffelpreiszeile liegt unter dem nativen Mindestverkaufspreis des Produkts und wurde nicht angewendet.
 
 # Compatibility
 DetectedPHPVersion=Erkannte PHP-Version
@@ -49,8 +77,15 @@ Available=Verfügbar
 Unavailable=Nicht verfügbar
 PriceByCustomerCategory=Preis nach Kundenkategorie
 PriceByCustomerCategoryDescription=Preis aus der nativen Kundenkategorie anwenden.
-PriceByPropalCategory=Preis nach Angebotskategorie
-PriceByPropalCategoryDescription=Preis aus der nativen Angebotskategorie anwenden.
-PriceByContractCategory=Preis nach Vertragskategorie
-PriceByContractCategoryDescription=Preis aus der per Hook deklarierten Vertragskategorie anwenden.
+PriceByPropalCategory=Preis nach Angebots-Tags/Kategorien
+PriceByPropalCategoryDescription=Preis aus den nativen Angebots-Tags/Kategorien anwenden, verfügbar ab Dolibarr v23.
+PriceByOrderCategory=Preis nach Auftrags-Tags/Kategorien
+PriceByOrderCategoryDescription=Preis aus den nativen Auftrags-Tags/Kategorien anwenden, verfügbar ab Dolibarr v22.
+PriceByInvoiceCategory=Preis nach Rechnungs-Tags/Kategorien
+PriceByInvoiceCategoryDescription=Preis aus den nativen Rechnungs-Tags/Kategorien anwenden, verfügbar ab Dolibarr v22.
+PriceByContractCategory=Preis nach Vertrags-Tags/Kategorien
+PriceByContractCategoryDescription=Preis aus von PriceList deklarierten Vertrags-Tags/Kategorien anwenden, verfügbar wenn die zugehörige Option aktiviert ist.
 RequiresDolibarr20Php80=Erfordert Dolibarr 20 oder höher und PHP 8.0 oder höher.
+RequiresDolibarr22Php80=Erfordert Dolibarr 22 oder höher und PHP 8.0 oder höher.
+RequiresDolibarr23Php80=Erfordert Dolibarr 23 oder höher und PHP 8.0 oder höher.
+RequiresPriceListContractCategoriesOption=Erfordert, dass die PriceList-Option für Vertrags-Tags/Kategorien aktiviert ist.

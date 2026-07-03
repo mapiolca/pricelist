@@ -21,6 +21,7 @@
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 /**
  * Manage price lists.
@@ -40,12 +41,16 @@ class PriceList extends CommonObject
 	public $socid;
 	public $catid;
 	public $catid_propal;
+	public $catid_order;
+	public $catid_invoice;
 	public $catid_contract;
 	public $from_qty;
 	public $price;
 	public $tx_discount;
 	public $cost_price;
+	public $use_product_cost_price;
 	public $user_creation_id;
+	public $oldcopy;
 
 	/**
 	 * Constructor.
@@ -80,11 +85,14 @@ class PriceList extends CommonObject
 		$sql .= "fk_soc,";
 		$sql .= "fk_cat,";
 		$sql .= "fk_cat_propal,";
+		$sql .= "fk_cat_order,";
+		$sql .= "fk_cat_invoice,";
 		$sql .= "fk_cat_contract,";
 		$sql .= "from_qty,";
 		$sql .= "price,";
 		$sql .= "tx_discount,";
 		$sql .= "cost_price,";
+		$sql .= "use_product_cost_price,";
 		$sql .= "fk_user_creation";
 		$sql .= ") VALUES (";
 		$sql .= " ".((int) $this->entity).",";
@@ -92,11 +100,14 @@ class PriceList extends CommonObject
 		$sql .= " ".$this->formatNullableInt($this->socid).",";
 		$sql .= " ".$this->formatNullableInt($this->catid).",";
 		$sql .= " ".$this->formatNullableInt($this->catid_propal).",";
+		$sql .= " ".$this->formatNullableInt($this->catid_order).",";
+		$sql .= " ".$this->formatNullableInt($this->catid_invoice).",";
 		$sql .= " ".$this->formatNullableInt($this->catid_contract).",";
 		$sql .= " ".price2num($this->from_qty).",";
 		$sql .= " ".$this->formatNullablePrice($this->price).",";
 		$sql .= " ".$this->formatNullablePrice($this->tx_discount).",";
 		$sql .= " ".$this->formatNullablePrice($this->cost_price).",";
+		$sql .= " ".((int) $this->use_product_cost_price).",";
 		$sql .= " ".((int) $user->id);
 		$sql .= ")";
 
@@ -113,6 +124,12 @@ class PriceList extends CommonObject
 		$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.$this->table_element);
 
 		$res = $this->call_trigger('PRICELIST_CREATE', $user);
+		if ($res < 0) {
+			$this->db->rollback();
+			return -1;
+		}
+
+		$res = $this->insertHistory($user, 'CREATE');
 		if ($res < 0) {
 			$this->db->rollback();
 			return -1;
@@ -137,11 +154,14 @@ class PriceList extends CommonObject
 		$sql .= " t.fk_soc,";
 		$sql .= " t.fk_cat,";
 		$sql .= " t.fk_cat_propal,";
+		$sql .= " t.fk_cat_order,";
+		$sql .= " t.fk_cat_invoice,";
 		$sql .= " t.fk_cat_contract,";
 		$sql .= " t.from_qty,";
 		$sql .= " t.price,";
 		$sql .= " t.tx_discount,";
 		$sql .= " t.cost_price,";
+		$sql .= " t.use_product_cost_price,";
 		$sql .= " t.fk_user_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t WHERE t.rowid = ".((int) $id);
 
@@ -185,11 +205,14 @@ class PriceList extends CommonObject
 		$sql .= " t.fk_soc,";
 		$sql .= " t.fk_cat,";
 		$sql .= " t.fk_cat_propal,";
+		$sql .= " t.fk_cat_order,";
+		$sql .= " t.fk_cat_invoice,";
 		$sql .= " t.fk_cat_contract,";
 		$sql .= " t.from_qty,";
 		$sql .= " t.price,";
 		$sql .= " t.tx_discount,";
 		$sql .= " t.cost_price,";
+		$sql .= " t.use_product_cost_price,";
 		$sql .= " t.fk_user_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
 
@@ -206,7 +229,7 @@ class PriceList extends CommonObject
 		if ($where) {
 			$sql .= " WHERE ".implode(" AND ", $where);
 		}
-		$sql .= " ORDER BY t.fk_product, t.fk_soc, t.fk_cat, t.fk_cat_propal, t.fk_cat_contract, t.from_qty";
+		$sql .= " ORDER BY t.fk_product, t.fk_soc, t.fk_cat, t.fk_cat_propal, t.fk_cat_order, t.fk_cat_invoice, t.fk_cat_contract, t.from_qty";
 
 		dol_syslog(get_class($this)."::search");
 		$resql = $this->db->query($sql);
@@ -240,16 +263,26 @@ class PriceList extends CommonObject
 		}
 
 		$error = 0;
+		$oldcopy = new PriceList($this->db);
+		$oldcopyloaded = false;
+		if (!empty($this->id) && $oldcopy->fetch((int) $this->id) > 0) {
+			$oldcopyloaded = true;
+			$this->oldcopy = clone $oldcopy;
+		}
+
 		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
 		$sql .= " fk_product=".((int) $this->product_id).",";
 		$sql .= " fk_soc=".$this->formatNullableInt($this->socid).",";
 		$sql .= " fk_cat=".$this->formatNullableInt($this->catid).",";
 		$sql .= " fk_cat_propal=".$this->formatNullableInt($this->catid_propal).",";
+		$sql .= " fk_cat_order=".$this->formatNullableInt($this->catid_order).",";
+		$sql .= " fk_cat_invoice=".$this->formatNullableInt($this->catid_invoice).",";
 		$sql .= " fk_cat_contract=".$this->formatNullableInt($this->catid_contract).",";
 		$sql .= " from_qty=".price2num($this->from_qty).",";
 		$sql .= " price=".$this->formatNullablePrice($this->price).",";
 		$sql .= " tx_discount=".$this->formatNullablePrice($this->tx_discount).",";
-		$sql .= " cost_price=".$this->formatNullablePrice($this->cost_price);
+		$sql .= " cost_price=".$this->formatNullablePrice($this->cost_price).",";
+		$sql .= " use_product_cost_price=".((int) $this->use_product_cost_price);
 		$sql .= " WHERE rowid=".((int) $this->id);
 		if (!empty($this->entity)) {
 			$sql .= " AND entity=".((int) $this->entity);
@@ -266,6 +299,13 @@ class PriceList extends CommonObject
 
 		if (!$error) {
 			$result = $this->call_trigger('PRICELIST_UPDATE', $user);
+			if ($result < 0) {
+				$error++;
+			}
+		}
+
+		if (!$error && (!$oldcopyloaded || $this->hasChangedComparedTo($oldcopy))) {
+			$result = $this->insertHistory($user, 'UPDATE');
 			if ($result < 0) {
 				$error++;
 			}
@@ -351,39 +391,31 @@ class PriceList extends CommonObject
 
 		$entities = $this->getPriceEntityCandidates($sourceObject, $product);
 		$sourceCategory = $this->getSourceObjectCategoryDefinition($sourceObject);
-		if (!empty($sourceCategory['field']) && !empty($sourceCategory['ids'])) {
-			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, $sourceCategory['field'], $sourceCategory['ids'], $entities);
-			if ($result) {
-				return $result;
-			}
-			if ($result < 0) {
-				return -1;
-			}
-		}
-
 		$socid = $this->getObjectId($soc);
-		if ($socid > 0) {
-			$result = $this->fetchBestPrice(
-				(int) $idproduct,
-				$qty,
-				array("t.fk_soc = ".$socid),
-				$entities,
-				"t.from_qty DESC",
-				"fk_soc"
-			);
-			if ($result) {
-				return $result;
-			}
-			if ($result < 0) {
-				return -1;
-			}
-		}
-
 		$customerCategories = $this->getCustomerCategoryIds($socid);
-		if (!empty($customerCategories)) {
-			$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, 'fk_cat', $customerCategories, $entities);
+		$prioritySteps = pricelistGetDocumentCategoryPriority()
+			? array('document_category', 'thirdparty', 'customer_category')
+			: array('thirdparty', 'customer_category', 'document_category');
+
+		foreach ($prioritySteps as $priorityStep) {
+			$result = 0;
+			if ($priorityStep === 'document_category' && !empty($sourceCategory['field']) && !empty($sourceCategory['ids'])) {
+				$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, $sourceCategory['field'], $sourceCategory['ids'], $entities);
+			} elseif ($priorityStep === 'thirdparty' && $socid > 0) {
+				$result = $this->fetchBestPrice(
+					(int) $idproduct,
+					$qty,
+					array("t.fk_soc = ".$socid),
+					$entities,
+					"t.from_qty DESC",
+					"fk_soc"
+				);
+			} elseif ($priorityStep === 'customer_category' && !empty($customerCategories)) {
+				$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, 'fk_cat', $customerCategories, $entities);
+			}
+
 			if ($result) {
-				return $result;
+				return $this->rejectPriceBelowMinimum($result, $soc);
 			}
 			if ($result < 0) {
 				return -1;
@@ -398,7 +430,7 @@ class PriceList extends CommonObject
 			"t.from_qty DESC"
 		);
 		if ($result) {
-			return $result;
+			return $this->rejectPriceBelowMinimum($result, $soc);
 		}
 		if ($result < 0) {
 			return -1;
@@ -421,11 +453,14 @@ class PriceList extends CommonObject
 		$this->socid = $obj->fk_soc;
 		$this->catid = $obj->fk_cat;
 		$this->catid_propal = $obj->fk_cat_propal;
+		$this->catid_order = $obj->fk_cat_order;
+		$this->catid_invoice = $obj->fk_cat_invoice;
 		$this->catid_contract = $obj->fk_cat_contract;
 		$this->from_qty = $obj->from_qty;
 		$this->price = $obj->price;
 		$this->tx_discount = $obj->tx_discount;
 		$this->cost_price = $obj->cost_price;
+		$this->use_product_cost_price = !empty($obj->use_product_cost_price) ? (int) $obj->use_product_cost_price : 0;
 		$this->user_creation_id = $obj->fk_user_creation;
 	}
 
@@ -437,27 +472,274 @@ class PriceList extends CommonObject
 	 */
 	private function validatePriceListValues($langs)
 	{
+		$this->normalizeCostPriceMode();
+
 		$priceFilled = dol_strlen($this->price);
 		$discountFilled = dol_strlen($this->tx_discount);
-		$costFilled = dol_strlen($this->cost_price);
+		$costFilled = dol_strlen($this->cost_price) || !empty($this->use_product_cost_price);
 
 		if ((!$priceFilled && !$discountFilled && !$costFilled) || ($priceFilled && $discountFilled)) {
 			$this->error = $langs->trans('FillPriceOrDiscountField');
 			return -1;
 		}
 
-		$targetCount = 0;
-		foreach (array($this->socid, $this->catid, $this->catid_propal, $this->catid_contract) as $target) {
-			if ((int) $target > 0) {
-				$targetCount++;
+		if (!pricelistIsPropalCategoryAvailable() && ((int) $this->catid_propal > 0)) {
+			$this->error = $langs->trans('RequiresDolibarr23Php80');
+			return -1;
+		}
+
+		if (!self::isDolibarrVersionAtLeast('22.0.0') && (((int) $this->catid_order > 0) || ((int) $this->catid_invoice > 0))) {
+			$this->error = $langs->trans('RequiresDolibarr22Php80');
+			return -1;
+		}
+
+		if (!pricelistIsContractCategoryAvailable() && ((int) $this->catid_contract > 0)) {
+			$this->error = $langs->trans('RequiresPriceListContractCategoriesOption');
+			return -1;
+		}
+
+		$hasThirdparty = ((int) $this->socid > 0);
+		$hasCustomerCategory = ((int) $this->catid > 0);
+		$hasDocumentCategory = false;
+		foreach ($this->getDocumentCategoryProperties() as $field) {
+			if ((int) $this->$field > 0) {
+				$hasDocumentCategory = true;
+				break;
 			}
 		}
-		if ($targetCount > 1) {
+
+		$exclusiveScopes = 0;
+		if ($hasThirdparty) {
+			$exclusiveScopes++;
+		}
+		if ($hasCustomerCategory) {
+			$exclusiveScopes++;
+		}
+		if ($hasDocumentCategory) {
+			$exclusiveScopes++;
+		}
+
+		if ($exclusiveScopes > 1) {
 			$this->error = $langs->trans('PriceListSingleScopeRequired');
 			return -1;
 		}
 
+		$minimumViolation = $this->getMinimumPriceViolation();
+		if (is_array($minimumViolation)) {
+			$this->error = $langs->trans(
+				'PriceListBelowMinimumPrice',
+				price($minimumViolation['current']),
+				price($minimumViolation['minimum'])
+			);
+			return -1;
+		}
+
 		return 1;
+	}
+
+	/**
+	 * Normalize the cost price mode before persistence.
+	 *
+	 * @return void
+	 */
+	private function normalizeCostPriceMode()
+	{
+		$this->use_product_cost_price = !empty($this->use_product_cost_price) ? 1 : 0;
+		if (!empty($this->use_product_cost_price)) {
+			$this->cost_price = null;
+		}
+	}
+
+	/**
+	 * Return a minimum price violation for the current row.
+	 *
+	 * @return array{current:float,minimum:float}|null
+	 */
+	public function getMinimumPriceViolation()
+	{
+		$row = new stdClass();
+		$row->fk_product = (int) $this->product_id;
+		$row->price = $this->price;
+		$row->tx_discount = $this->tx_discount;
+
+		$soc = null;
+		if ((int) $this->socid > 0) {
+			dol_include_once('/societe/class/societe.class.php');
+			if (class_exists('Societe')) {
+				$soc = new Societe($this->db);
+				if ($soc->fetch((int) $this->socid) <= 0) {
+					$soc = null;
+				}
+			}
+		}
+
+		return $this->getMinimumPriceViolationForRow($row, $soc);
+	}
+
+	/**
+	 * Return a minimum price violation for a fetched row.
+	 *
+	 * @param stdClass    $row Price row
+	 * @param object|null $soc Thirdparty context
+	 * @return array{current:float,minimum:float}|null
+	 */
+	public function getMinimumPriceViolationForRow($row, $soc = null)
+	{
+		$productId = $this->getRowProductId($row);
+		if ($productId <= 0) {
+			return null;
+		}
+
+		$product = $this->fetchProductForMinimumCheck($productId);
+		if (!is_object($product)) {
+			return null;
+		}
+
+		$minimum = (isset($product->price_min) && dol_strlen($product->price_min)) ? (float) price2num($product->price_min) : 0.0;
+		if ($minimum <= 0) {
+			return null;
+		}
+
+		$current = null;
+		if (isset($row->price) && dol_strlen($row->price)) {
+			$current = (float) price2num($row->price);
+		} elseif (isset($row->tx_discount) && dol_strlen($row->tx_discount)) {
+			$basePrice = $this->getMinimumCheckBasePrice($product, $soc);
+			if ($basePrice === null) {
+				return null;
+			}
+			$current = (float) $basePrice * (1 - ((float) price2num($row->tx_discount) / 100));
+		}
+
+		if ($current === null) {
+			return null;
+		}
+
+		if ((float) price2num($current) < (float) price2num($minimum)) {
+			return array(
+				'current' => (float) price2num($current),
+				'minimum' => (float) price2num($minimum),
+			);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Return the effective cost price for a row.
+	 *
+	 * @param stdClass|PriceList $row Price row
+	 * @return float|null
+	 */
+	public function getEffectiveCostPriceForRow($row)
+	{
+		if (!empty($row->use_product_cost_price)) {
+			$productId = $this->getRowProductId($row);
+			if ($productId <= 0) {
+				return null;
+			}
+
+			return $this->getProductCostPrice($productId);
+		}
+		if (isset($row->cost_price) && dol_strlen($row->cost_price)) {
+			return (float) price2num($row->cost_price);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Return the native product cost price.
+	 *
+	 * @param int $productId Product id
+	 * @return float|null
+	 */
+	public function getProductCostPrice($productId)
+	{
+		$product = new Product($this->db);
+		if ($productId <= 0 || $product->fetch($productId) <= 0) {
+			return null;
+		}
+		if (!isset($product->cost_price) || !dol_strlen($product->cost_price)) {
+			return null;
+		}
+
+		return (float) price2num($product->cost_price);
+	}
+
+	/**
+	 * Return the product id carried by a row object.
+	 *
+	 * @param stdClass|PriceList $row Price row
+	 * @return int
+	 */
+	private function getRowProductId($row)
+	{
+		if (isset($row->fk_product)) {
+			return (int) $row->fk_product;
+		}
+		if (isset($row->product_id)) {
+			return (int) $row->product_id;
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Fetch the product used for minimum price checks.
+	 *
+	 * @param int $productId Product id
+	 * @return Product|null
+	 */
+	private function fetchProductForMinimumCheck($productId)
+	{
+		$product = new Product($this->db);
+		if ($productId <= 0 || $product->fetch($productId) <= 0) {
+			return null;
+		}
+
+		return $product;
+	}
+
+	/**
+	 * Return the base sale price used to test a discount against the minimum price.
+	 *
+	 * @param Product     $product Product object
+	 * @param object|null $soc     Thirdparty context
+	 * @return float|null
+	 */
+	private function getMinimumCheckBasePrice($product, $soc = null)
+	{
+		if (is_object($soc) && method_exists($product, 'getSellPrice')) {
+			try {
+				$product->getSellPrice($soc);
+			} catch (Throwable $e) {
+				dol_syslog(__METHOD__.' '.$e->getMessage(), LOG_DEBUG);
+			}
+		}
+		if (isset($product->price) && dol_strlen($product->price)) {
+			return (float) price2num($product->price);
+		}
+
+		return null;
+	}
+
+	/**
+	 * Reject a fetched row when it violates the native product minimum sale price.
+	 *
+	 * @param stdClass    $row Price row
+	 * @param object|null $soc Thirdparty context
+	 * @return int|stdClass
+	 */
+	private function rejectPriceBelowMinimum($row, $soc = null)
+	{
+		$violation = $this->getMinimumPriceViolationForRow($row, $soc);
+		if (is_array($violation)) {
+			$this->error = 'PriceListBelowMinimumPriceNotApplied';
+			return -1;
+		}
+
+		return $row;
 	}
 
 	/**
@@ -480,6 +762,17 @@ class PriceList extends CommonObject
 	private function formatNullablePrice($value)
 	{
 		return dol_strlen($value) ? (string) price2num($value) : "null";
+	}
+
+	/**
+	 * Check Dolibarr version without depending on the compatibility helper.
+	 *
+	 * @param string $version Version
+	 * @return bool
+	 */
+	private static function isDolibarrVersionAtLeast($version)
+	{
+		return defined('DOL_VERSION') && version_compare(DOL_VERSION, $version, '>=');
 	}
 
 	/**
@@ -538,6 +831,12 @@ class PriceList extends CommonObject
 		if ($categorytype === 'propal') {
 			return 'fk_cat_propal';
 		}
+		if ($categorytype === 'order' || $categorytype === 'commande') {
+			return 'fk_cat_order';
+		}
+		if ($categorytype === 'invoice' || $categorytype === 'facture') {
+			return 'fk_cat_invoice';
+		}
 		if ($categorytype === 'contract' || $categorytype === 'contrat') {
 			return 'fk_cat_contract';
 		}
@@ -586,10 +885,16 @@ class PriceList extends CommonObject
 			$element = (string) $sourceObject->table_element;
 		}
 
-		if ($element === 'propal') {
+		if ($element === 'propal' && pricelistIsPropalCategoryAvailable()) {
 			$definition['field'] = 'fk_cat_propal';
 			$definition['ids'] = $this->getObjectCategoryIds($this->getObjectId($sourceObject), 'categorie_propal', 'fk_propal', 23);
-		} elseif ($element === 'contrat' || $element === 'contract') {
+		} elseif (($element === 'commande' || $element === 'order') && self::isDolibarrVersionAtLeast('22.0.0')) {
+			$definition['field'] = 'fk_cat_order';
+			$definition['ids'] = $this->getObjectCategoryIds($this->getObjectId($sourceObject), 'categorie_order', 'fk_order', 16);
+		} elseif (($element === 'facture' || $element === 'invoice') && self::isDolibarrVersionAtLeast('22.0.0')) {
+			$definition['field'] = 'fk_cat_invoice';
+			$definition['ids'] = $this->getObjectCategoryIds($this->getObjectId($sourceObject), 'categorie_invoice', 'fk_invoice', 17);
+		} elseif (($element === 'contrat' || $element === 'contract') && pricelistIsContractCategoryAvailable()) {
 			$definition['field'] = 'fk_cat_contract';
 			$definition['ids'] = $this->getObjectCategoryIds($this->getObjectId($sourceObject), 'categorie_contract', 'fk_contract', 450022);
 		}
@@ -729,7 +1034,7 @@ class PriceList extends CommonObject
 	 */
 	private function fetchBestPriceForEntity($idproduct, $qty, $where, $entity, $order, $exceptField = '')
 	{
-		$sql = "SELECT price, tx_discount, cost_price, from_qty";
+		$sql = "SELECT rowid, fk_product, price, tx_discount, cost_price, use_product_cost_price, from_qty";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
 		$sql .= " WHERE t.entity = ".((int) $entity);
 		$sql .= " AND t.fk_product = ".((int) $idproduct);
@@ -765,14 +1070,179 @@ class PriceList extends CommonObject
 	private function getEmptyTargetWhere($exceptField = '')
 	{
 		$where = array();
-		foreach (array('fk_soc', 'fk_cat', 'fk_cat_propal', 'fk_cat_contract') as $field) {
+		$fields = array_merge(array('fk_soc', 'fk_cat'), $this->getDocumentCategoryFields());
+		$allowedDocumentFields = $this->isDocumentCategoryField($exceptField) ? $this->getDocumentCategoryFields() : array();
+		foreach ($fields as $field) {
 			if ($field === $exceptField) {
+				continue;
+			}
+			if (in_array($field, $allowedDocumentFields, true)) {
 				continue;
 			}
 			$where[] = "(t.".$field." IS NULL OR t.".$field." < 1)";
 		}
 
 		return $where;
+	}
+
+	/**
+	 * Return history rows for this price list line.
+	 *
+	 * @return ?array<int,stdClass> Null on error
+	 */
+	public function getHistory()
+	{
+		if (empty($this->id)) {
+			return array();
+		}
+		if (!$this->tableExists('pricelist_log')) {
+			return array();
+		}
+
+		$sql = "SELECT";
+		$sql .= " l.rowid,";
+		$sql .= " l.entity,";
+		$sql .= " l.fk_pricelist,";
+		$sql .= " l.datec,";
+		$sql .= " l.fk_user,";
+		$sql .= " l.change_type,";
+		$sql .= " l.fk_product,";
+		$sql .= " l.fk_soc,";
+		$sql .= " l.fk_cat,";
+		$sql .= " l.fk_cat_propal,";
+		$sql .= " l.fk_cat_order,";
+		$sql .= " l.fk_cat_invoice,";
+		$sql .= " l.fk_cat_contract,";
+		$sql .= " l.from_qty,";
+		$sql .= " l.price,";
+		$sql .= " l.tx_discount,";
+		$sql .= " l.cost_price,";
+		$sql .= " l.use_product_cost_price,";
+		$sql .= " u.login";
+		$sql .= " FROM ".MAIN_DB_PREFIX."pricelist_log as l";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."user as u ON u.rowid = l.fk_user";
+		$sql .= " WHERE l.fk_pricelist = ".((int) $this->id);
+		$sql .= " ORDER BY l.datec ASC, l.rowid ASC";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = "Error ".$this->db->lasterror();
+			return null;
+		}
+
+		$history = array();
+		while ($obj = $this->db->fetch_object($resql)) {
+			$history[] = $obj;
+		}
+		$this->db->free($resql);
+
+		return $history;
+	}
+
+	/**
+	 * Insert a history snapshot for the current line.
+	 *
+	 * @param User   $user       User
+	 * @param string $changeType Change type
+	 * @return int
+	 */
+	private function insertHistory($user, $changeType)
+	{
+		global $conf;
+
+		if (empty($this->id) || !$this->tableExists('pricelist_log')) {
+			return 1;
+		}
+
+		$entity = !empty($this->entity) ? (int) $this->entity : (!empty($conf->entity) ? (int) $conf->entity : 1);
+		$sql = "INSERT INTO ".MAIN_DB_PREFIX."pricelist_log (";
+		$sql .= "entity, fk_pricelist, datec, fk_user, change_type,";
+		$sql .= " fk_product, fk_soc, fk_cat, fk_cat_propal, fk_cat_order, fk_cat_invoice, fk_cat_contract,";
+		$sql .= " from_qty, price, tx_discount, cost_price, use_product_cost_price";
+		$sql .= ") VALUES (";
+		$sql .= ((int) $entity).",";
+		$sql .= ((int) $this->id).",";
+		$sql .= "'".$this->db->idate(dol_now())."',";
+		$sql .= (!empty($user->id) ? (int) $user->id : "null").",";
+		$sql .= "'".$this->db->escape($changeType)."',";
+		$sql .= ((int) $this->product_id).",";
+		$sql .= $this->formatNullableInt($this->socid).",";
+		$sql .= $this->formatNullableInt($this->catid).",";
+		$sql .= $this->formatNullableInt($this->catid_propal).",";
+		$sql .= $this->formatNullableInt($this->catid_order).",";
+		$sql .= $this->formatNullableInt($this->catid_invoice).",";
+		$sql .= $this->formatNullableInt($this->catid_contract).",";
+		$sql .= price2num($this->from_qty).",";
+		$sql .= $this->formatNullablePrice($this->price).",";
+		$sql .= $this->formatNullablePrice($this->tx_discount).",";
+		$sql .= $this->formatNullablePrice($this->cost_price).",";
+		$sql .= ((int) $this->use_product_cost_price);
+		$sql .= ")";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = "Error ".$this->db->lasterror();
+			$this->errors[] = $this->error;
+			return -1;
+		}
+
+		return 1;
+	}
+
+	/**
+	 * Check if current values differ from a previous snapshot.
+	 *
+	 * @param PriceList $oldcopy Previous object
+	 * @return bool
+	 */
+	private function hasChangedComparedTo($oldcopy)
+	{
+		foreach (array('product_id', 'socid', 'catid', 'catid_propal', 'catid_order', 'catid_invoice', 'catid_contract', 'use_product_cost_price') as $property) {
+			if ((int) $this->$property !== (int) $oldcopy->$property) {
+				return true;
+			}
+		}
+
+		foreach (array('from_qty', 'price', 'tx_discount', 'cost_price') as $property) {
+			$current = dol_strlen($this->$property) ? price2num($this->$property) : null;
+			$previous = dol_strlen($oldcopy->$property) ? price2num($oldcopy->$property) : null;
+			if ($current !== $previous) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Return document category properties that may be combined on one price row.
+	 *
+	 * @return array<int,string>
+	 */
+	private function getDocumentCategoryProperties()
+	{
+		return array('catid_propal', 'catid_order', 'catid_invoice', 'catid_contract');
+	}
+
+	/**
+	 * Return document category SQL fields that may be combined on one price row.
+	 *
+	 * @return array<int,string>
+	 */
+	private function getDocumentCategoryFields()
+	{
+		return array('fk_cat_propal', 'fk_cat_order', 'fk_cat_invoice', 'fk_cat_contract');
+	}
+
+	/**
+	 * Check if a SQL field is a document category target.
+	 *
+	 * @param string $field SQL field
+	 * @return bool
+	 */
+	private function isDocumentCategoryField($field)
+	{
+		return in_array($field, array('fk_cat_propal', 'fk_cat_order', 'fk_cat_invoice', 'fk_cat_contract'), true);
 	}
 
 	/**

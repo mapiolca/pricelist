@@ -17,6 +17,7 @@
 
 require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
+dol_include_once('/pricelist/lib/pricelist.lib.php');
 
 /**
  *  Class of triggers for PriceList module
@@ -79,7 +80,7 @@ class InterfacePriceListTriggers extends DolibarrTriggers
      */
     public function runTrigger($action, $object, User $user, Translate $langs, Conf $conf)
     {
-        if (empty($conf->pricelist->enabled)) {
+        if (!isModEnabled('pricelist')) {
             return 0;
         } // If module is not enabled, we do nothing
 
@@ -102,7 +103,7 @@ class InterfacePriceListTriggers extends DolibarrTriggers
 
             // Products
             case 'PRODUCT_CREATE':
-                if (empty($conf->global->PRICELIST_CLONE_ON_CLONE_PRODUCT) or !isset($object->context['createfromclone'])) {
+                if (getDolGlobalInt('PRICELIST_CLONE_ON_CLONE_PRODUCT', 0) <= 0 or !isset($object->context['createfromclone'])) {
                     return 0;
                 }
 
@@ -169,21 +170,56 @@ class InterfacePriceListTriggers extends DolibarrTriggers
 	            case 'CATEGORY_DELETE':
 					$categoryField = '';
 					$typeCustomer = defined('Categorie::TYPE_CUSTOMER') ? Categorie::TYPE_CUSTOMER : 2;
-					if ((int) $object->type === (int) $typeCustomer) {
+					$objectType = -1;
+					if (isset($object->type) && is_numeric($object->type)) {
+						$objectType = (int) $object->type;
+					} elseif (isset($object->type) && isset($object->MAP_ID[$object->type])) {
+						$objectType = (int) $object->MAP_ID[$object->type];
+					}
+					if ($objectType === (int) $typeCustomer) {
 						$categoryField = 'fk_cat';
-					} elseif ((int) $object->type === 23) {
+					} elseif ($objectType === 23 && pricelistIsPropalCategoryAvailable()) {
 						$categoryField = 'fk_cat_propal';
-					} elseif ((int) $object->type === 450022) {
+					} elseif ($objectType === 16 && pricelistIsOrderInvoiceCategoryAvailable()) {
+						$categoryField = 'fk_cat_order';
+					} elseif ($objectType === 17 && pricelistIsOrderInvoiceCategoryAvailable()) {
+						$categoryField = 'fk_cat_invoice';
+					} elseif ($objectType === 450022 && pricelistIsContractCategoryAvailable()) {
 						$categoryField = 'fk_cat_contract';
 					}
 	                if ($categoryField === '') {
 	                    return 0;
 	                }
 
-	                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
-	                $sql.= " WHERE ".$categoryField." = ".$object->id;
-	                $sql.= " AND entity = ".((int) $conf->entity);
-	                $resql = $this->db->query($sql);
+					if ($categoryField === 'fk_cat') {
+		                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
+		                $sql.= " WHERE ".$categoryField." = ".$object->id;
+		                $sql.= " AND entity = ".((int) $conf->entity);
+		                $resql = $this->db->query($sql);
+					} else {
+						$documentFields = array('fk_cat_propal', 'fk_cat_order', 'fk_cat_invoice', 'fk_cat_contract');
+						$otherDocumentWhere = array();
+						foreach ($documentFields as $documentField) {
+							if ($documentField !== $categoryField) {
+								$otherDocumentWhere[] = "(".$documentField." IS NULL OR ".$documentField." < 1)";
+							}
+						}
+
+		                $sql = "DELETE FROM ".MAIN_DB_PREFIX."pricelist";
+		                $sql.= " WHERE ".$categoryField." = ".$object->id;
+		                $sql.= " AND entity = ".((int) $conf->entity);
+		                $sql.= " AND (fk_soc IS NULL OR fk_soc < 1)";
+		                $sql.= " AND (fk_cat IS NULL OR fk_cat < 1)";
+		                $sql.= " AND ".implode(" AND ", $otherDocumentWhere);
+		                $resql = $this->db->query($sql);
+						if ($resql) {
+			                $sql = "UPDATE ".MAIN_DB_PREFIX."pricelist";
+			                $sql.= " SET ".$categoryField." = NULL";
+			                $sql.= " WHERE ".$categoryField." = ".$object->id;
+			                $sql.= " AND entity = ".((int) $conf->entity);
+			                $resql = $this->db->query($sql);
+						}
+					}
                 if ($resql) {
                     return 1;
                 } else {

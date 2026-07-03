@@ -6,9 +6,11 @@ PriceListCompatibility=Price list module compatibility
 PRICELIST_CLONE_ON_CLONE_PRODUCT=Clone price list when cloning product
 PRICELIST_SHOW_PRICES_TTC=Show prices including tax
 PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING=Do not overwrite price not equal to zero when adding product (/!\ the price will be overwritten when updating)
+PRICELIST_DOCUMENT_CATEGORY_PRIORITY=Prioritize current object tags/categories over thirdparty/customer category prices
+PRICELIST_ENABLE_CONTRACT_CATEGORIES=Enable contract tags/categories provided by PriceList
 PurgePriceList=Remove all price list (/!\ this action is irreversible)
 PurgeAll=Remove all
-ConfirmPurgePriceList=Are you sure you want to remove all price list? <b>/!\ This action is irreversible.<b>
+ConfirmPurgePriceList=Are you sure you want to remove all price list? <b>/!\ This action is irreversible.</b>
 AllPriceListRemoved=All price list have been removed
 
 # Main
@@ -17,33 +19,50 @@ PriceLists=Price lists
 
 # Tab product
 AddPriceList=Add tariff
+EditPriceList=Edit tariff
 NewPriceOffer=New tariff
-FromQtyLong=From (quantiy)
+FromQtyLong=From (quantity)
 FromQty=From
-AllFieldIsRequired=All field is required
+AllFieldIsRequired=All fields are required
 FillPriceOrDiscountField=Fill in the price, cost or discount field
 CostPriceHT=Cost price (excl. tax)
 CostPrice=Cost price
-PriceHT=Price HT
-PriceTTC=Price TTC
+UseProductCostPrice=Use product cost price
+ProductCostPrice=Product cost price
+PriceHT=Price excl. tax
+PriceTTC=Price incl. tax
 AddedBy=Added by
-PriceOrDiscountRate=Price HT or reduction rate
-PropalCategory=Proposal category
-PropalCategoryId=Proposal category ID
-ContractCategory=Contract category
-ContractCategoryId=Contract category ID
-PriceListSingleScopeRequired=Choose only one price scope: thirdparty, customer category, proposal category or contract category
+PriceOrDiscountRate=Price excl. tax, price incl. tax or discount rate
+PropalCategory=Proposal tags/categories
+PropalCategoryId=Proposal tags/categories ID
+OrderCategory=Order tags/categories
+OrderCategoryId=Order tags/categories ID
+InvoiceCategory=Invoice tags/categories
+InvoiceCategoryId=Invoice tags/categories ID
+ContractCategory=Contract tags/categories
+ContractCategoryId=Contract tags/categories ID
+PriceListSingleScopeRequired=Choose only one price scope: thirdparty, customer category or document tags/categories
 
 PriceListId=Price line ID
 
 PriceListInsert=Price list applied
 
 DeletePriceList=Delete price
-ConfirmDeletePriceList=Are you sure you want to delete this price(s) ?
+ConfirmDeletePriceList=Are you sure you want to delete this price(s)?
 
-CanNotDeletePriceList=Can not delete price list : %s
+CanNotDeletePriceList=Can not delete price list: %s
 
-PriceListUpdate=Update Price list
+PriceListUpdate=Update price list
+PriceListHistory=History
+PriceListHistoryEmpty=No history available
+PriceListHistoryNewValue=New value
+PriceListHistoryDiff=Diff.
+PriceListPriorityDocumentFirstBanner=Active rule: current object tags/categories prices take priority over thirdparty and customer category prices.
+PriceListPriorityCustomerFirstBanner=Active rule: thirdparty and customer category prices take priority over current object tags/categories prices.
+PriceListMinimumPriceWarning=Warning: one or more existing rows are below the product native minimum sale price and will not be applied.
+PriceListMinimumPriceWarningLine=Product %s, quantity %s: calculated price %s, minimum %s.
+PriceListBelowMinimumPrice=The calculated price (%s) is lower than the product native minimum sale price (%s).
+PriceListBelowMinimumPriceNotApplied=The matching price list row is lower than the product native minimum sale price and was not applied.
 
 # Compatibility
 DetectedPHPVersion=Detected PHP version
@@ -58,8 +77,15 @@ Available=Available
 Unavailable=Unavailable
 PriceByCustomerCategory=Price by customer category
 PriceByCustomerCategoryDescription=Apply a price from the customer's native category.
-PriceByPropalCategory=Price by proposal category
-PriceByPropalCategoryDescription=Apply a price from the proposal's native category.
-PriceByContractCategory=Price by contract category
-PriceByContractCategoryDescription=Apply a price from the contract category declared by hook.
+PriceByPropalCategory=Price by proposal tags/categories
+PriceByPropalCategoryDescription=Apply a price from the proposal's native tags/categories, available from Dolibarr v23.
+PriceByOrderCategory=Price by order tags/categories
+PriceByOrderCategoryDescription=Apply a price from the order's native tags/categories, available from Dolibarr v22.
+PriceByInvoiceCategory=Price by invoice tags/categories
+PriceByInvoiceCategoryDescription=Apply a price from the invoice's native tags/categories, available from Dolibarr v22.
+PriceByContractCategory=Price by contract tags/categories
+PriceByContractCategoryDescription=Apply a price from contract tags/categories declared by PriceList, available when the dedicated option is enabled.
 RequiresDolibarr20Php80=Requires Dolibarr 20 or higher and PHP 8.0 or higher.
+RequiresDolibarr22Php80=Requires Dolibarr 22 or higher and PHP 8.0 or higher.
+RequiresDolibarr23Php80=Requires Dolibarr 23 or higher and PHP 8.0 or higher.
+RequiresPriceListContractCategoriesOption=Requires the PriceList contract tags/categories option to be enabled.
