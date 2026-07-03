@@ -33,13 +33,13 @@ PriceHT=Prix HT
 PriceTTC=Prix TTC
 AddedBy=Ajouté par
 PriceOrDiscountRate=Prix HT, prix TTC ou taux de réduction
-PropalCategory=Tags/catégories devis
+PropalCategory=Tags/Catégorie devis
 PropalCategoryId=Identifiant de tags/catégories devis
-OrderCategory=Tags/catégories commandes
+OrderCategory=Tags/Catégorie commandes
 OrderCategoryId=Identifiant de tags/catégories commandes
-InvoiceCategory=Tags/catégories factures
+InvoiceCategory=Tags/Catégorie factures
 InvoiceCategoryId=Identifiant de tags/catégories factures
-ContractCategory=Tags/catégories contrats
+ContractCategory=Tags/Catégorie contrats
 ContractCategoryId=Identifiant de tags/catégories contrats
 PriceListSingleScopeRequired=Choisir un seul périmètre tarifaire : tiers, catégorie client ou tags/catégories de document
 

@@ -7,7 +7,7 @@
 - Ajout du support des tags/catégories commandes et factures à partir de Dolibarr v22.
 - Possibilité de regrouper les tags/catégories devis, commandes, factures et contrats sur une même ligne tarifaire.
 - Ajout de la saisie TTC lorsque l'option d'affichage des prix TTC est active, avec stockage du prix HT.
-- Renommage des libellés français en `Tags/catégories devis` et `Tags/catégories contrats`.
+- Renommage des libellés français en `Tags/Catégorie devis`, `Tags/Catégorie commandes`, `Tags/Catégorie factures` et `Tags/Catégorie contrats`.
 - Ajout du réglage `PRICELIST_DOCUMENT_CATEGORY_PRIORITY` pour choisir la priorité entre tarifs de l'objet courant et tarifs tiers/catégorie client.
 - Ajout d'une bannière permanente dans l'onglet des tarifs dégressifs rappelant la règle de priorité active.
 - Blocage des tarifs dégressifs inférieurs au prix de vente minimum natif du produit, avec alerte sur les lignes existantes incohérentes.
