@@ -27,6 +27,7 @@ class ActionsPriceList
 	public $db;
 	public $error = '';
 	public $errors = array();
+	public $warnings = array();
 	public $results = array();
 	public $resprints = '';
 

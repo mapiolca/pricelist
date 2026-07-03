@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Correction de l'application des tarifs dégressifs lors de l'édition d'une ligne de contrat.
+- Correction de la propriété `warnings` déclarée pour la classe de hooks avec PHP 8.2+.
 
 ## 2.1.0
 
