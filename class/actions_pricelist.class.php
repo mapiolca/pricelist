@@ -77,7 +77,7 @@ class ActionsPriceList
 				$this->updateInvoiceLines($object, $client);
 			}
 		} elseif ($context == 'contractcard' && $this->hasRight($user, 'contrat', 'creer')) {
-			$this->handleAddOrUpdateLine($object, $action, $client, $object, 'ContratLigne', '/contrat/class/contrat.class.php');
+			$this->handleContractAddOrUpdateLine($object, $action, $client);
 			if ($action == 'altaupdatelines') {
 				$this->updateContractLines($object, $client);
 			}
@@ -208,6 +208,71 @@ class ActionsPriceList
 	}
 
 	/**
+	 * Handle contract addline and updateline actions.
+	 *
+	 * @param object $object Current contract
+	 * @param string $action Current action
+	 * @param object $client Thirdparty
+	 * @return void
+	 */
+	private function handleContractAddOrUpdateLine($object, $action, $client)
+	{
+		global $conf;
+
+		if ($action == 'addline') {
+			if (GETPOST('prod_entry_mode') == 'free') {
+				return;
+			}
+			if (!empty($conf->global->PRICELIST_DO_NOT_OVERWRITE_PRICE_WHEN_ADDING) && GETPOSTINT('price_ht') != 0) {
+				return;
+			}
+
+			$this->applyPriceToPostFromPriceList(GETPOSTINT('idprod'), $client, GETPOST('qty'), $object);
+			return;
+		}
+
+		if (!in_array($action, array('updateline', 'updateligne'))) {
+			return;
+		}
+
+		$lineid = GETPOSTINT('elrowid');
+		if ($lineid <= 0) {
+			$lineid = GETPOSTINT('rowid');
+		}
+		if ($lineid <= 0) {
+			$lineid = GETPOSTINT('lineid');
+		}
+		if ($lineid <= 0) {
+			return;
+		}
+
+		dol_include_once('/contrat/class/contrat.class.php');
+		if (!class_exists('ContratLigne')) {
+			return;
+		}
+
+		$line = new ContratLigne($this->db);
+		if ($line->fetch($lineid) <= 0) {
+			return;
+		}
+
+		$qty = GETPOST('elqty');
+		if (!dol_strlen($qty)) {
+			$qty = $line->qty;
+		}
+
+		$idprod = GETPOSTINT('idprod');
+		if ($idprod <= 0 && !empty($line->fk_product)) {
+			$idprod = (int) $line->fk_product;
+		}
+		if ($idprod <= 0) {
+			return;
+		}
+
+		$this->applyContractLinePriceToPostFromPriceList($idprod, $client, $qty, $object);
+	}
+
+	/**
 	 * Apply price list values to POST before Dolibarr handles the line action.
 	 *
 	 * @param int     $idprod       Product id
@@ -232,6 +297,30 @@ class ActionsPriceList
 	}
 
 	/**
+	 * Apply price list values to the contract line edit POST fields.
+	 *
+	 * @param int    $idprod Product id
+	 * @param object $client Thirdparty
+	 * @param mixed  $qty    Quantity
+	 * @param object $object Contract object
+	 * @return void
+	 */
+	private function applyContractLinePriceToPostFromPriceList($idprod, $client, $qty, $object)
+	{
+		global $langs;
+
+		if ($idprod <= 0) {
+			return;
+		}
+
+		$pricelist = new PriceList($this->db);
+		$obj = $pricelist->get_price($idprod, $client, $qty, $object);
+		if (!is_int($obj) && $this->applyPriceToContractLinePost($obj)) {
+			setEventMessage($langs->trans('PriceListInsert'));
+		}
+	}
+
+	/**
 	 * Apply a price row to POST.
 	 *
 	 * @param stdClass $obj Price row
@@ -249,6 +338,27 @@ class ActionsPriceList
 			$costPrice = price($obj->cost_price);
 			$_POST['buying_price'] = $costPrice;
 			$_POST['pa_ht'] = $costPrice;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Apply a price row to Dolibarr contract line edit fields.
+	 *
+	 * @param stdClass $obj Price row
+	 * @return bool
+	 */
+	private function applyPriceToContractLinePost($obj)
+	{
+		if (dol_strlen($obj->price)) {
+			$_POST['elprice'] = price($obj->price);
+		} elseif (dol_strlen($obj->tx_discount)) {
+			$_POST['elremise_percent'] = price($obj->tx_discount);
+		}
+
+		if (dol_strlen($obj->cost_price)) {
+			$_POST['buying_price'] = price($obj->cost_price);
 		}
 
 		return true;
