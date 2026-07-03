@@ -397,7 +397,7 @@ if ($list !== null) {
 		print '<td class="right">'.$userstatic->getLoginUrl(1).'</td>';
 
 		$tooltip = pricelist_get_history_tooltip($db, $obj, $langs);
-		print '<td class="center">'.$form->textwithpicto('', $tooltip, 1, 'info', '', 1).'</td>';
+		print '<td class="center">'.$form->textwithpicto('', $tooltip, 1, 'info', '', 0).'</td>';
 
 		$rowCanWrite = pricelistCanWritePrices($user, is_object($product) && isset($product->type) ? (int) $product->type : null);
 		if ($canCreatePriceList || $canDeletePriceList) {
