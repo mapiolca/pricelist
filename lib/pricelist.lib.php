@@ -145,6 +145,44 @@ if (!function_exists('pricelistCanWritePrices')) {
 	}
 }
 
+if (!function_exists('pricelistEnsureObjectHeadTab')) {
+	/**
+	 * Ensure the price list tab exists when the current page is already the price list tab.
+	 *
+	 * @param array<int,array<int,string>> $head       Existing object head tabs
+	 * @param string                       $objectType Object type: product or thirdparty
+	 * @param int                          $objectId   Object id
+	 * @return array<int,array<int,string>>
+	 */
+	function pricelistEnsureObjectHeadTab($head, $objectType, $objectId)
+	{
+		global $langs;
+
+		if (!is_array($head)) {
+			$head = array();
+		}
+
+		foreach ($head as $tab) {
+			if (isset($tab[2]) && $tab[2] === 'pricelist') {
+				return $head;
+			}
+		}
+
+		$url = '';
+		if ($objectType === 'product') {
+			$url = dol_buildpath('/pricelist/product.php', 1).'?id='.(int) $objectId;
+		} elseif ($objectType === 'thirdparty') {
+			$url = dol_buildpath('/pricelist/customer.php', 1).'?id='.(int) $objectId;
+		}
+
+		if ($url !== '') {
+			$head[] = array($url, $langs->trans('PriceLists'), 'pricelist');
+		}
+
+		return $head;
+	}
+}
+
 /**
  * Prepare admin tabs.
  *

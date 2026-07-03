@@ -72,6 +72,7 @@ $arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
 llxHeader('', $langs->trans('ThirdParty'), '', '', '', '', $arrayofjs);
 
 $head = societe_prepare_head($object);
+$head = pricelistEnsureObjectHeadTab($head, 'thirdparty', (int) $object->id);
 dol_fiche_head($head, 'pricelist', $langs->trans("ThirdParty"), 0, 'company');
 dol_banner_tab($object, 'id', '', ($user->socid ? 0 : 1), 'rowid');
 dol_fiche_end();

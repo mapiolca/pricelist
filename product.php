@@ -92,6 +92,7 @@ $title = $langs->trans('CardProduct'.$object->type).' '.$object->label;
 llxHeader('', $title, '', '', '', '', $arrayofjs);
 
 $head = product_prepare_head($object, $user);
+$head = pricelistEnsureObjectHeadTab($head, 'product', (int) $object->id);
 $picto = ($object->type == 1 ? 'service' : 'product');
 
 dol_fiche_head($head, 'pricelist', $title, 0, $picto);
