@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.1
+
+- Suppression de la propriété dynamique obsolète du descripteur sous PHP 8.2.
+
 ## 2.2.0
 
 - Ajout de l'édition des lignes de tarifs dégressifs depuis l'onglet existant.

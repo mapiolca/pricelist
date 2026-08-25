@@ -62,7 +62,7 @@ class modPriceList extends DolibarrModules
 		// EN: Provide a bilingual module description. FR: Fournir une description bilingue du module.
 		$this->description = "Manage selling and cost price lists / Gestion des tarifs de vente et de revient";
 		// Possible values for version are: 'development', 'experimental', 'dolibarr' or version
-			$this->version = '2.2.0';
+			$this->version = '2.2.1';
 		$this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
 		// EN: Reference the new editor information. FR: Référencer les nouvelles informations de l'éditeur.
 		$this->editor_name= 'Les Métiers du Bâtiment';
@@ -70,7 +70,6 @@ class modPriceList extends DolibarrModules
         // Key used in llx_const table to save module status enabled/disabled (where MYMODULE is value of property name of module in uppercase)
         $this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
         // Where to store the module in setup page (0=common,1=interface,2=others,3=very specific)
-        $this->special = 0;
         // Name of image file used for this module.
         // If file is in theme/yourtheme/img directory under name object_pictovalue.png, use this->picto='pictovalue'
         // If file is in module/img directory under name object_pictovalue.png, use this->picto='pictovalue@module'
