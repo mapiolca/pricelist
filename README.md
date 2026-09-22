@@ -54,6 +54,15 @@ Les coûts sont appliqués lors de l’ajout, de la modification et de l’actua
 
 ## Vérifications de développement
 
+Le manifeste Composer déclare PHP 8.0 minimum, sans dépendance externe : Dolibarr fournit l’environnement d’exécution du module. Le workflow GitHub valide le manifeste et son fichier de verrouillage, exécute l’installation Composer puis vérifie la syntaxe des fichiers PHP suivis par Git.
+
+```sh
+composer validate --strict
+composer install --prefer-dist --no-progress --no-interaction
+```
+
+Les tests métier ciblés nécessitent un checkout des sources Dolibarr :
+
 ```sh
 php test/run.php /chemin/vers/dolibarr 20.0.0
 php test/run.php /chemin/vers/dolibarr 21.0.0

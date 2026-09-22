@@ -23,6 +23,12 @@ Lecture de sources et simulation ne constituent pas des tests d’une installati
 - `git diff --check` : aucune erreur de whitespace.
 - PHPStan : **non exécuté**, aucun exécutable/configuration utilisable fourni dans PriceList, aucun binaire PHPStan dans les dépendances locales examinées. Aucun ignore ni baseline ajouté.
 
+## Correction du workflow PHP Composer
+
+Le job GitHub `PHP Composer / build` échouait lors de `composer validate --strict` : `composer.json` ne contenait qu’une ligne vide. Le manifeste déclare désormais les métadonnées du module et PHP `>=8.0`, sans dépendance externe ni duplication de la version du descripteur. Le verrou généré par Composer est versionné ; le répertoire `vendor` et le cache local sont ignorés. Le cache CI des dépendances, inutile sans paquet externe, est retiré. Le workflow vérifie aussi la syntaxe des fichiers PHP suivis par Git.
+
+Validation locale avec Composer **2.10.1** et PHP **8.4.22** : génération du verrou, validation stricte et installation réussies ; syntaxe des **18 fichiers PHP** valide. Le réseau local restreint a empêché la consultation des données distantes Packagist, sans échec de l’installation ; aucun paquet externe n’est verrouillé ou installé. Le résultat GitHub du commit publié doit être vérifié séparément.
+
 ## Régression de l’onglet en Dolibarr 23.0.2
 
 Les logs fournis par l’utilisateur montrent le refus de notre expression contenant `$user->socid`. L’échec a été reproduit avant correction avec `dol_eval()` et `verifCond()` extraits du tag 23.0.2 : cette propriété n’est pas autorisée par sa liste de variables. Le contrôle des utilisateurs externes est conservé dans `product.php`, en dehors du texte évalué. L’onglet utilise directement les permissions produit/service, sans élévation administrateur.
