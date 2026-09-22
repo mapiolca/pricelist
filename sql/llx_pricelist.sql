@@ -13,6 +13,7 @@ create table llx_pricelist
     price               double DEFAULT NULL,
     tx_discount         double DEFAULT NULL,
     cost_price          double DEFAULT NULL,
+    cost_price_source varchar(16) DEFAULT NULL,
     use_product_cost_price tinyint DEFAULT 0 NOT NULL,
     fk_user_creation    integer NOT NULL,
     import_key          varchar(14) DEFAULT NULL

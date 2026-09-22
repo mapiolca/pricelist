@@ -4,17 +4,14 @@ $(function () {
 		return;
 	}
 
-	var $useProductCostPrice = $form.find('select[name="use_product_cost_price"]');
+	var $costPriceSource = $form.find('select[name="cost_price_source"]');
 	var $costPrice = $form.find('input[name="cost_price"]');
 	var syncCostPriceMode = function () {
-		var enabled = $useProductCostPrice.val() === '1';
-		if (enabled) {
-			$costPrice.val('');
-		}
+		var enabled = $costPriceSource.val() !== 'custom';
 		$costPrice.prop('disabled', enabled);
 	};
-	if ($useProductCostPrice.length && $costPrice.length) {
-		$useProductCostPrice.on('change', syncCostPriceMode);
+	if ($costPriceSource.length && $costPrice.length) {
+		$costPriceSource.on('change', syncCostPriceMode);
 		syncCostPriceMode();
 	}
 

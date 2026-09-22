@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.0 — préparée, non publiée
+
+- Ajout de l’onglet de réglages **À propos**, alimenté par le descripteur, après **Compatibilité**.
+- Correction de l’onglet natif **Tarifs dégressifs** sur les sous-pages des produits et services : expression testée avec les évaluateurs Dolibarr 20, 21, 22, 23.0.2 et 24.0.1, droits propres à chaque type et suppression des ajouts de secours. Le contrôle des utilisateurs externes reste dans la page, hors de l’expression évaluée.
+- Choix de trois sources de prix de revient : personnalisé, produit natif et DynamicPrices. Lecture du coût courant valide dans l’entité du document, sans recalcul ; coût existant conservé avec alerte si la source est indisponible. Fonctionnement indépendant de l’automatisation des ventes DynamicsPrices.
+- Migration rejouable de `cost_price_source` pour les tarifs et leur historique, conversion des anciennes entrées, adaptation du clonage et des imports/exports. Réactiver PriceList après installation pour migrer et renouveler les onglets/hooks ; les réglages existants restent conservés.
+- Résolution commune des coûts dans les écrans et les documents commerciaux, y compris les factures récurrentes ; contrôles des droits et des entités renforcés, sans élévation administrateur. Socle déclaré Dolibarr 20+ / PHP 8.0+ inchangé ; traductions françaises et anglaises et tests ciblés ajoutés.
+
+## 2.2.1
+
+- Suppression de la propriété dynamique obsolète du descripteur sous PHP 8.2.
+
 ## 2.2.0
 
 - Ajout de l'édition des lignes de tarifs dégressifs depuis l'onglet existant.

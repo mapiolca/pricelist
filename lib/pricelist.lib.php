@@ -85,104 +85,6 @@ if (!function_exists('pricelistGetDocumentCategoryPriority')) {
 	}
 }
 
-if (!function_exists('pricelistCanReadPrices')) {
-	/**
-	 * Check if a user can read product/service prices.
-	 *
-	 * @param User     $user        User
-	 * @param int|null $productType Product type: 0 product, 1 service, null unknown
-	 * @return bool
-	 */
-	function pricelistCanReadPrices($user, $productType = null)
-	{
-		if (!empty($user->admin)) {
-			return true;
-		}
-
-		if (getDolGlobalInt('MAIN_USE_ADVANCED_PERMS', 0) > 0) {
-			if ($productType === 1) {
-				return $user->hasRight('service', 'service_advance', 'read_prices');
-			}
-			if ($productType === 0) {
-				return $user->hasRight('product', 'product_advance', 'read_prices');
-			}
-
-			return $user->hasRight('product', 'product_advance', 'read_prices') || $user->hasRight('service', 'service_advance', 'read_prices');
-		}
-
-		if ($productType === 1) {
-			return $user->hasRight('service', 'read') || $user->hasRight('service', 'lire');
-		}
-		if ($productType === 0) {
-			return $user->hasRight('product', 'read') || $user->hasRight('produit', 'lire');
-		}
-
-		return $user->hasRight('product', 'read') || $user->hasRight('produit', 'lire') || $user->hasRight('service', 'read') || $user->hasRight('service', 'lire');
-	}
-}
-
-if (!function_exists('pricelistCanWritePrices')) {
-	/**
-	 * Check if a user can create, update or delete a price list row.
-	 *
-	 * @param User     $user        User
-	 * @param int|null $productType Product type: 0 product, 1 service, null unknown
-	 * @return bool
-	 */
-	function pricelistCanWritePrices($user, $productType = null)
-	{
-		if (!empty($user->admin)) {
-			return true;
-		}
-		if ($productType === 1) {
-			return $user->hasRight('service', 'creer');
-		}
-		if ($productType === 0) {
-			return $user->hasRight('produit', 'creer');
-		}
-
-		return $user->hasRight('produit', 'creer') || $user->hasRight('service', 'creer');
-	}
-}
-
-if (!function_exists('pricelistEnsureObjectHeadTab')) {
-	/**
-	 * Ensure the price list tab exists when the current page is already the price list tab.
-	 *
-	 * @param array<int,array<int,string>> $head       Existing object head tabs
-	 * @param string                       $objectType Object type: product or thirdparty
-	 * @param int                          $objectId   Object id
-	 * @return array<int,array<int,string>>
-	 */
-	function pricelistEnsureObjectHeadTab($head, $objectType, $objectId)
-	{
-		global $langs;
-
-		if (!is_array($head)) {
-			$head = array();
-		}
-
-		foreach ($head as $tab) {
-			if (isset($tab[2]) && $tab[2] === 'pricelist') {
-				return $head;
-			}
-		}
-
-		$url = '';
-		if ($objectType === 'product') {
-			$url = dol_buildpath('/pricelist/product.php', 1).'?id='.(int) $objectId;
-		} elseif ($objectType === 'thirdparty') {
-			$url = dol_buildpath('/pricelist/customer.php', 1).'?id='.(int) $objectId;
-		}
-
-		if ($url !== '') {
-			$head[] = array($url, $langs->trans('PriceLists'), 'pricelist');
-		}
-
-		return $head;
-	}
-}
-
 /**
  * Prepare admin tabs.
  *
@@ -206,6 +108,8 @@ function pricelistAdminPrepareHead()
 	$head[$h][1] = $langs->trans('Compatibility');
 	$head[$h][2] = 'compatibility';
 	$h++;
+
+	$head[$h] = array(dol_buildpath('/pricelist/admin/about.php', 1), $langs->trans('About'), 'about');
 
 	return $head;
 }

@@ -89,3 +89,26 @@ RequiresDolibarr20Php80=Requires Dolibarr 20 or higher and PHP 8.0 or higher.
 RequiresDolibarr22Php80=Requires Dolibarr 22 or higher and PHP 8.0 or higher.
 RequiresDolibarr23Php80=Requires Dolibarr 23 or higher and PHP 8.0 or higher.
 RequiresPriceListContractCategoriesOption=Requires the PriceList contract tags/categories option to be enabled.
+
+# PriceList 2.3.0
+PriceListCostSource=Cost price source
+PriceListCustomCost=Custom
+PriceListDynamicCost=DynamicPrices
+PriceListDynamicCostDescription=Current valid DynamicPrices cost in the document or consultation entity. Requires DynamicPrices costs, cost read permission and product access. Independent of sales automation; no recalculation or write.
+PriceListDynamicPricesDisabled=The DynamicsPrices module is disabled.
+PriceListDynamicCostDisabled=DynamicPrices costs are disabled in the relevant entity.
+PriceListDynamicPricesIncompatible=The DynamicPrices cost reader is missing or incompatible.
+PriceListDynamicCostForbidden=DynamicPrices cost read permission is required.
+PriceListDynamicCostUnavailable=No valid accessible DynamicPrices cost is available for this product in this entity.
+PriceListInvalidCostSource=Invalid cost price source.
+PriceListInvalidCostPrice=Invalid cost price.
+PriceListCostPreserved=Existing cost price preserved. Other price list values are applied. %s
+PriceListOptionalModules=Recommended modules
+PriceListUsefulLinks=Useful links
+PriceListRepository=Module repository
+PriceListSupport=Support and issues
+PriceListAboutTiers=Quantity price breaks by product/service, customer and category.
+PriceListAboutSources=Custom, native product or current DynamicPrices cost price.
+PriceListAboutDocuments=Application to proposals, orders, invoices, recurring invoices and contracts.
+PriceListAboutHistory=Price list history, cloning and native imports/exports.
+PriceListDependencies=Required dependencies
