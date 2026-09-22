@@ -159,10 +159,13 @@ class modPriceList extends DolibarrModules
         // 'stock'            to add a tab in stock view
         // 'thirdparty'       to add a tab in third party view
         // 'user'             to add a tab in user view
-		$readProductPricesCondition = '( ( getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) > 0 && $user->hasRight("product", "product_advance", "read_prices")) || ( getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) == 0 && $user->hasRight("product", "read")))';
-		$readServicePricesCondition = '( ( getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) > 0 && $user->hasRight("service", "service_advance", "read_prices")) || ( getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) == 0 && $user->hasRight("service", "read")))';
-		$readPricesCondition = '('.$readProductPricesCondition.' || '.$readServicePricesCondition.')';
-		$readObjectPricesCondition = '$user->socid == 0 && ( ($object->type == 0 && '.$readProductPricesCondition.') || ($object->type == 1 && '.$readServicePricesCondition.'))';
+		$readProductPricesCondition = 'getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) > 0 && $user->hasRight("product", "product_advance", "read_prices") || getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) == 0 && $user->hasRight("product", "read")';
+		$readServicePricesCondition = 'getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) > 0 && $user->hasRight("service", "service_advance", "read_prices") || getDolGlobalInt("MAIN_USE_ADVANCED_PERMS", 0) == 0 && $user->hasRight("service", "read")';
+		$readPricesCondition = '( '.$readProductPricesCondition.' || '.$readServicePricesCondition.')';
+		// Dolibarr 23.0.2 rejects $user->socid in dol_eval(). The page keeps
+		// its separate external-user guard; evaluated tabs use native rights only.
+		// Single groups also avoid the nested-parenthesis rejection in Dolibarr 21.
+		$readObjectPricesCondition = '($object->type == 0 && ( '.$readProductPricesCondition.')) || ($object->type == 1 && ( '.$readServicePricesCondition.'))';
 		$this->tabs = array(
 			'product:+pricelist:PriceLists:pricelist@pricelist:'.$readObjectPricesCondition.':/pricelist/product.php?id=__ID__',
 			'thirdparty:+pricelist:PriceLists:pricelist@pricelist:($object->client && $user->hasRight("societe", "lire") && '.$readPricesCondition.'):/pricelist/customer.php?id=__ID__'

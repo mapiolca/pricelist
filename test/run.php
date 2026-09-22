@@ -1,7 +1,7 @@
 <?php
 /* Copyright (C) 2026 Pierre Ardoin <developpeur@lesmetiersdubatiment.fr> */
 // Behavioural simulations, with real Dolibarr evaluators/monetary normalization.
-// Usage: php test/run.php /path/to/dolibarr [20.0.0|HEAD]
+// Usage: php test/run.php /path/to/dolibarr [20.0.0|21.0.0|22.0.0|23.0.2|24.0.1|HEAD]
 error_reporting(E_ALL);
 set_error_handler(static function ($severity, $message, $file, $line) {
 	if (error_reporting() & $severity) {
@@ -42,7 +42,17 @@ foreach (array('dol_eval', 'verifCond', 'price2num', 'complete_head_from_modules
 }
 if (strpos($native, 'function dolBuildUrl(') !== false) { eval(extractFunction($native, 'dolBuildUrl')); }
 if (strpos($native, 'function dol_eval_standard(') !== false) { eval(extractFunction($native, 'dol_eval_standard')); }
-define('DOL_VERSION', $ref === '20.0.0' ? '20.0.0' : '24.0.1');
+if (preg_match('/^\d+\.\d+\.\d+$/', $ref)) {
+	define('DOL_VERSION', $ref);
+} else {
+	$versionSource = shell_exec('git -C '.escapeshellarg($core).' show '.escapeshellarg($ref.':htdocs/version.inc.php'));
+	if (!is_string($versionSource)
+		|| !preg_match("/define\('DOL_MAJOR_VERSION', '([^']+)'\)/", $versionSource, $majorVersion)
+		|| !preg_match("/define\('DOL_MINOR_VERSION', '([^']+)'\)/", $versionSource, $minorVersion)) {
+		throw new RuntimeException('Cannot identify the native version for '.$ref);
+	}
+	define('DOL_VERSION', $majorVersion[1].'.'.$minorVersion[1]);
+}
 define('MAIN_DB_PREFIX', 'test_long_prefix_');
 define('DOL_DOCUMENT_ROOT', $core.'/htdocs');
 define('DOL_URL_ROOT', '');
@@ -264,6 +274,20 @@ foreach (array(0, 1) as $type) {
 		}
 	}
 }
+$customerCondition = explode(':', $descriptor->tabs[1])[4];
+foreach (array(0, 1) as $advanced) {
+	$settings['MAIN_USE_ADVANCED_PERMS'] = $advanced;
+	foreach (array('product', 'service') as $permission) {
+		$object = (object) array('client' => 1);
+		$right = $advanced ? $permission.'.'.$permission.'_advance.read_prices' : $permission.'.read';
+		$user->allowed = array($right, 'societe.lire');
+		check(verifCond($customerCondition, '2'), 'customer tab accepts '.$permission.' right');
+		$user->allowed = array($right);
+		check(!verifCond($customerCondition, '2'), 'customer tab requires thirdparty read');
+		$user->allowed = array($right, 'societe.lire'); $object->client = 0;
+		check(!verifCond($customerCondition, '2'), 'customer tab excludes non-customers');
+	}
+}
 $settings['MAIN_USE_ADVANCED_PERMS'] = 0; $user->allowed = $allowed; $user->admin = 0;
 check(count($descriptor->config_page_url) === 1 && $descriptor->version === '2.3.0', 'single settings entry and version');
 check(array_column(pricelistAdminPrepareHead(), 2) === array('settings', 'compatibility', 'about'), 'admin tab ordering');
@@ -308,7 +332,9 @@ foreach (array(0, 1) as $type) {
 	}
 }
 $user->socid = 20;
-check(!verifCond($condition, '2'), 'external product access not advertised'); $user->socid = 0;
+// External-user restrictions belong to product.php; no unsupported user
+// property may invalidate the expression, even for an internal administrator.
+check(verifCond($condition, '2'), 'native rights expression independent of external-user metadata'); $user->socid = 0;
 // Full update and import update preserve the canonical source and history.
 $stored = (object) array('rowid' => 50, 'entity' => 2, 'fk_product' => 10, 'fk_soc' => null, 'fk_cat' => null, 'fk_cat_propal' => null, 'fk_cat_order' => null, 'fk_cat_invoice' => null, 'fk_cat_contract' => null, 'from_qty' => 1, 'price' => 80, 'tx_discount' => null, 'cost_price' => null, 'cost_price_source' => 'dynamicprices', 'use_product_cost_price' => 0, 'fk_user_creation' => 1);
 $db->records = array($stored);
@@ -340,4 +366,4 @@ check(isset($descriptor->export_fields_array[1]['pl.cost_price_source']) && !iss
 check(strpos($descriptor->export_sql_end[1], 'pl.entity = 2') !== false, 'export uses consultation entity');
 check(strpos($descriptor->export_sql_end[1], 'p.entity IN (1,2)') !== false, 'export restricts shared product scope');
 check(isset($descriptor->import_fields_array[1]['p.cost_price_source'], $descriptor->import_fields_array[1]['p.use_product_cost_price']), 'native import preserves legacy mapping and accepts canonical source');
-echo 'OK: '.$tests.' assertions; native functions '.$ref.'; PHP '.PHP_VERSION."; simulated DB/provider, no live instance.\n";
+echo 'OK: '.$tests.' assertions; native functions '.$ref.' (Dolibarr '.DOL_VERSION.'); PHP '.PHP_VERSION."; simulated DB/provider, no live instance.\n";

@@ -44,6 +44,8 @@ Socle déclaré inchangé : **Dolibarr 20+ / PHP 8.0+**, MySQL/MariaDB. Version 
 
 Après copie des fichiers, réactiver PriceList dans l’administration native pour exécuter la migration et renouveler les déclarations d’onglets/hooks. La migration ajoute `cost_price_source` aux tarifs et à leur historique. Les anciennes valeurs `use_product_cost_price=1` deviennent `product` et les autres `custom`. Le marqueur SQL `NULL` rend une migration interrompue rejouable ; une source déjà migrée reste inchangée. Les anciens montants et historiques sont conservés. Aucun index nouveau ni réglage réinitialisé.
 
+Une correction du descripteur nécessite également cette désactivation/réactivation si 2.3.0 est déjà installée : Dolibarr enregistre les déclarations d’onglets en base. La condition corrigée évite notamment `$user->socid`, rejeté par l’évaluateur de Dolibarr 23.0.2 ; le contrôle des utilisateurs externes reste effectué directement dans la page PHP.
+
 `cost_price_source` est l’unique valeur métier faisant autorité. La colonne historique `use_product_cost_price` reste une projection de compatibilité (`1` pour `product`, `0` autrement). Les nouveaux appels objet doivent renseigner `cost_price_source`. Une ancienne entrée ne comportant que le booléen est convertie à l’entrée ; modifier uniquement ce booléen sur un objet déjà chargé ne remplace pas sa source explicite.
 
 Les imports natifs CSV/XLSX acceptent `custom`, `product`, `dynamicprices`, ainsi que les anciennes correspondances du booléen. Une source explicite est prioritaire ; les champs omis lors d’une mise à jour restent conservés. Les produits, tiers et auteurs acceptent les identifiants/références natifs (`id:…`, `ref:…`). L’import passe par les validations et l’historique de l’objet ; la simulation native conserve sa transaction de rollback et supprime les effets des triggers. L’export fournit la source enregistrée et le montant personnalisé, sans exporter un coût dynamique courant comme un instantané.
@@ -54,6 +56,10 @@ Les coûts sont appliqués lors de l’ajout, de la modification et de l’actua
 
 ```sh
 php test/run.php /chemin/vers/dolibarr 20.0.0
+php test/run.php /chemin/vers/dolibarr 21.0.0
+php test/run.php /chemin/vers/dolibarr 22.0.0
+php test/run.php /chemin/vers/dolibarr 23.0.2
+php test/run.php /chemin/vers/dolibarr 24.0.1
 php test/run.php /chemin/vers/dolibarr HEAD
 php test/run.php /chemin/vers/dolibarr 20.0.0 missing
 php test/run.php /chemin/vers/dolibarr 20.0.0 old
