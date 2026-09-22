@@ -21,7 +21,10 @@
 require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
-dol_include_once('/pricelist/lib/pricelist.lib.php');
+require_once DOL_DOCUMENT_ROOT.'/societe/class/societe.class.php';
+require_once __DIR__.'/../lib/pricelist.lib.php';
+require_once __DIR__.'/pricelistcompatibility.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/security.lib.php';
 
 /**
  * Manage price lists.
@@ -32,6 +35,7 @@ class PriceList extends CommonObject
 	public $error;
 	public $errors = array();
 	public $element = 'pricelist';
+	public $TRIGGER_PREFIX = 'PRICELIST';
 	public $table_element = 'pricelist';
 	public $ismultientitymanaged = 1;
 
@@ -48,7 +52,16 @@ class PriceList extends CommonObject
 	public $price;
 	public $tx_discount;
 	public $cost_price;
+	/** @var int|null Legacy input only; derived from cost_price_source on persistence. */
 	public $use_product_cost_price;
+	/** @var string|null Null only for legacy input before normalization. */
+	public $cost_price_source;
+	/** @var int|null Runtime cost entity; never persisted. */
+	public $cost_context_entity;
+	/** @var string|null Document element associated with cost_context_entity. */
+	public $cost_context_element;
+	/** @var string Translation key for an unavailable cost. */
+	public $cost_price_warning = '';
 	public $user_creation_id;
 	public $oldcopy;
 
@@ -67,17 +80,18 @@ class PriceList extends CommonObject
 	 * Create object into database.
 	 *
 	 * @param User $user User that creates
+	 * @param int $notrigger Disable triggers during native import simulation
 	 * @return int <0 if KO, id of created object if OK
 	 */
-	public function create($user)
+	public function create($user, $notrigger = 0)
 	{
 		global $conf, $langs;
 
-		if ($this->validatePriceListValues($langs) < 0) {
+		if ($this->validatePriceListValues($langs, $user) < 0) {
 			return -1;
 		}
 
-		$this->entity = !empty($this->entity) ? (int) $this->entity : (!empty($conf->entity) ? (int) $conf->entity : 1);
+		$this->entity = (int) $conf->entity;
 
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX.$this->table_element." (";
 		$sql .= "entity,";
@@ -92,8 +106,8 @@ class PriceList extends CommonObject
 		$sql .= "price,";
 		$sql .= "tx_discount,";
 		$sql .= "cost_price,";
-		$sql .= "use_product_cost_price,";
-		$sql .= "fk_user_creation";
+		$sql .= "cost_price_source,use_product_cost_price,";
+		$sql .= "fk_user_creation, import_key";
 		$sql .= ") VALUES (";
 		$sql .= " ".((int) $this->entity).",";
 		$sql .= " ".((int) $this->product_id).",";
@@ -107,8 +121,8 @@ class PriceList extends CommonObject
 		$sql .= " ".$this->formatNullablePrice($this->price).",";
 		$sql .= " ".$this->formatNullablePrice($this->tx_discount).",";
 		$sql .= " ".$this->formatNullablePrice($this->cost_price).",";
-		$sql .= " ".((int) $this->use_product_cost_price).",";
-		$sql .= " ".((int) $user->id);
+		$sql .= " '".$this->db->escape($this->cost_price_source)."',".((int) $this->use_product_cost_price).",";
+		$sql .= " ".((int) ($this->user_creation_id ?: $user->id)).", ".(isset($this->import_key) ? "'".$this->db->escape($this->import_key)."'" : "null");
 		$sql .= ")";
 
 		$this->db->begin();
@@ -123,7 +137,7 @@ class PriceList extends CommonObject
 
 		$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.$this->table_element);
 
-		$res = $this->call_trigger('PRICELIST_CREATE', $user);
+		$res = $notrigger ? 0 : $this->call_trigger('PRICELIST_CREATE', $user);
 		if ($res < 0) {
 			$this->db->rollback();
 			return -1;
@@ -147,6 +161,7 @@ class PriceList extends CommonObject
 	 */
 	public function fetch($id)
 	{
+		global $conf;
 		$sql = "SELECT";
 		$sql .= " t.rowid,";
 		$sql .= " t.entity,";
@@ -161,9 +176,10 @@ class PriceList extends CommonObject
 		$sql .= " t.price,";
 		$sql .= " t.tx_discount,";
 		$sql .= " t.cost_price,";
-		$sql .= " t.use_product_cost_price,";
+		$sql .= " t.cost_price_source, t.use_product_cost_price,";
 		$sql .= " t.fk_user_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t WHERE t.rowid = ".((int) $id);
+		$sql .= " AND t.entity = ".((int) $conf->entity);
 
 		dol_syslog(get_class($this)."::fetch");
 		$resql = $this->db->query($sql);
@@ -195,7 +211,11 @@ class PriceList extends CommonObject
 	 */
 	public function search($product_id = 0, $socid = 0, $catid = 0, $categorytype = 'customer', $entity = 0)
 	{
+		global $conf, $user;
 		$entity = $this->resolveEntity(null, $entity);
+		if ($entity !== (int) $conf->entity) {
+			return array();
+		}
 		$categoryfield = $this->getCategoryFieldForType($categorytype);
 
 		$sql = "SELECT";
@@ -212,11 +232,29 @@ class PriceList extends CommonObject
 		$sql .= " t.price,";
 		$sql .= " t.tx_discount,";
 		$sql .= " t.cost_price,";
-		$sql .= " t.use_product_cost_price,";
+		$sql .= " t.cost_price_source, t.use_product_cost_price,";
 		$sql .= " t.fk_user_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
 
-		$where = array("t.entity = ".((int) $entity));
+		$sql .= " INNER JOIN ".MAIN_DB_PREFIX."product AS p ON p.rowid = t.fk_product";
+		$readProduct = getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') > 0 ? $user->hasRight('product', 'product_advance', 'read_prices') : $user->hasRight('product', 'read');
+		$readService = getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') > 0 ? $user->hasRight('service', 'service_advance', 'read_prices') : $user->hasRight('service', 'read');
+		$where = array("t.entity = ".((int) $entity), "p.entity IN (".$this->db->sanitize(getEntity('product')).")", "((p.fk_product_type = 0 AND ".((int) $readProduct)." = 1) OR (p.fk_product_type = 1 AND ".((int) $readService)." = 1))");
+		if (!$user->hasRight('societe', 'lire')) {
+			$where[] = "t.fk_soc IS NULL";
+		} else {
+			$customerScope = "SELECT 1 FROM ".MAIN_DB_PREFIX."societe AS s WHERE s.rowid = t.fk_soc AND s.entity IN (".$this->db->sanitize(getEntity('societe')).")";
+			if (!empty($user->socid)) {
+				$customerScope .= " AND s.rowid = ".((int) $user->socid);
+			} elseif (!$user->hasRight('societe', 'client', 'voir')) {
+				$customerScope .= " AND EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."societe_commerciaux AS sc WHERE sc.fk_soc = s.rowid AND sc.fk_user = ".((int) $user->id).")";
+			}
+			$where[] = "(t.fk_soc IS NULL OR EXISTS (".$customerScope."))";
+		}
+		foreach (array('fk_cat', 'fk_cat_propal', 'fk_cat_order', 'fk_cat_invoice', 'fk_cat_contract') as $categoryField) {
+			$where[] = !$user->hasRight('categorie', 'lire') ? "t.".$categoryField." IS NULL"
+				: "(t.".$categoryField." IS NULL OR EXISTS (SELECT 1 FROM ".MAIN_DB_PREFIX."categorie AS c WHERE c.rowid = t.".$categoryField." AND c.entity IN (".$this->db->sanitize(getEntity('categorie')).")))";
+		}
 		if ($product_id) {
 			$where[] = "t.fk_product = ".((int) $product_id);
 		}
@@ -252,13 +290,14 @@ class PriceList extends CommonObject
 	 * Update object into database.
 	 *
 	 * @param User $user User that modifies
+	 * @param int $notrigger Disable triggers during native import simulation
 	 * @return int <0 if KO, >0 if OK
 	 */
-	public function update($user)
+	public function update($user, $notrigger = 0)
 	{
 		global $langs;
 
-		if ($this->validatePriceListValues($langs) < 0) {
+		if ($this->validatePriceListValues($langs, $user) < 0) {
 			return -1;
 		}
 
@@ -269,6 +308,18 @@ class PriceList extends CommonObject
 			$oldcopyloaded = true;
 			$this->oldcopy = clone $oldcopy;
 		}
+
+		if (!$oldcopyloaded) {
+			$this->error = $langs->trans('ErrorRecordNotFound');
+			return -1;
+		}
+		$oldProduct = new Product($this->db);
+		if ($oldProduct->fetch((int) $oldcopy->product_id) <= 0
+			|| !((int) $oldProduct->type === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
+			$this->error = $langs->trans('NotEnoughPermissions');
+			return -1;
+		}
+		$this->entity = $oldcopy->entity;
 
 		$sql = "UPDATE ".MAIN_DB_PREFIX.$this->table_element." SET";
 		$sql .= " fk_product=".((int) $this->product_id).",";
@@ -282,7 +333,10 @@ class PriceList extends CommonObject
 		$sql .= " price=".$this->formatNullablePrice($this->price).",";
 		$sql .= " tx_discount=".$this->formatNullablePrice($this->tx_discount).",";
 		$sql .= " cost_price=".$this->formatNullablePrice($this->cost_price).",";
-		$sql .= " use_product_cost_price=".((int) $this->use_product_cost_price);
+		$sql .= " cost_price_source='".$this->db->escape($this->cost_price_source)."', use_product_cost_price=".((int) $this->use_product_cost_price);
+		if (isset($this->import_key) && $this->import_key !== '') {
+			$sql .= ", import_key='".$this->db->escape($this->import_key)."'";
+		}
 		$sql .= " WHERE rowid=".((int) $this->id);
 		if (!empty($this->entity)) {
 			$sql .= " AND entity=".((int) $this->entity);
@@ -298,7 +352,7 @@ class PriceList extends CommonObject
 		}
 
 		if (!$error) {
-			$result = $this->call_trigger('PRICELIST_UPDATE', $user);
+			$result = $notrigger ? 0 : $this->call_trigger('PRICELIST_UPDATE', $user);
 			if ($result < 0) {
 				$error++;
 			}
@@ -332,6 +386,14 @@ class PriceList extends CommonObject
 	 */
 	public function delete($user)
 	{
+		global $conf, $langs;
+		$product = new Product($this->db);
+		if (!isModEnabled('pricelist') || (int) $this->entity !== (int) $conf->entity || $product->fetch((int) $this->product_id) <= 0
+			|| !in_array((int) $product->entity, array_map('intval', explode(',', getEntity('product'))), true)
+			|| !((int) $product->type === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
+			$this->error = $langs->trans('NotEnoughPermissions');
+			return -1;
+		}
 		$error = 0;
 
 		$this->db->begin();
@@ -382,6 +444,7 @@ class PriceList extends CommonObject
 	 */
 	public function get_price($idproduct, $soc, $qty, $sourceObject = null)
 	{
+		global $user, $conf;
 		$product = new Product($this->db);
 		$res = $product->fetch((int) $idproduct);
 		if ($res <= 0) {
@@ -389,9 +452,35 @@ class PriceList extends CommonObject
 			return -1;
 		}
 
+		$permission = (int) $product->type === 1 ? 'service' : 'product';
+		$canReadPrice = getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') > 0 ? $user->hasRight($permission, $permission.'_advance', 'read_prices') : $user->hasRight($permission, 'read');
+		if (!isModEnabled('pricelist') || !$canReadPrice
+			|| !in_array((int) $product->entity, array_map('intval', explode(',', getEntity('product'))), true)
+			|| !checkUserAccessToObject($user, array($permission), $product, 'product&product')) {
+			$this->error = 'NotEnoughPermissions';
+			return -1;
+		}
+		$costEntity = $this->resolveEntity($sourceObject);
+		$costElement = is_object($sourceObject) && isset($sourceObject->element) ? $sourceObject->element : '';
+		if ($costEntity !== (int) $conf->entity
+			&& (!in_array($costElement, array('propal', 'commande', 'facture', 'facturerec', 'contrat'), true)
+				|| !in_array($costEntity, array_map('intval', explode(',', getEntity($costElement))), true))) {
+			$this->error = 'NotEnoughPermissions';
+			return -1;
+		}
+
 		$entities = $this->getPriceEntityCandidates($sourceObject, $product);
 		$sourceCategory = $this->getSourceObjectCategoryDefinition($sourceObject);
 		$socid = $this->getObjectId($soc);
+		if ($socid > 0) {
+			$customer = new Societe($this->db);
+			if (!$user->hasRight('societe', 'lire') || $customer->fetch($socid) <= 0
+				|| !in_array((int) $customer->entity, array_map('intval', explode(',', getEntity('societe'))), true)
+				|| !checkUserAccessToObject($user, array('societe'), $customer, 'societe')) {
+				$this->error = 'NotEnoughPermissions';
+				return -1;
+			}
+		}
 		$customerCategories = $this->getCustomerCategoryIds($socid);
 		$prioritySteps = pricelistGetDocumentCategoryPriority()
 			? array('document_category', 'thirdparty', 'customer_category')
@@ -414,7 +503,9 @@ class PriceList extends CommonObject
 				$result = $this->fetchBestPriceByCategory((int) $idproduct, $qty, 'fk_cat', $customerCategories, $entities);
 			}
 
-			if ($result) {
+			if (is_object($result)) {
+				$result->cost_context_entity = $costEntity;
+				$result->cost_context_element = $costElement;
 				return $this->rejectPriceBelowMinimum($result, $soc);
 			}
 			if ($result < 0) {
@@ -429,7 +520,9 @@ class PriceList extends CommonObject
 			$entities,
 			"t.from_qty DESC"
 		);
-		if ($result) {
+		if (is_object($result)) {
+			$result->cost_context_entity = $costEntity;
+			$result->cost_context_element = $costElement;
 			return $this->rejectPriceBelowMinimum($result, $soc);
 		}
 		if ($result < 0) {
@@ -437,6 +530,27 @@ class PriceList extends CommonObject
 		}
 
 		return 0;
+	}
+
+	/**
+	 * Does this tariff belong to the product, customer or category being edited?
+	 * @param object $object Displayed parent
+	 * @param string $type Category type
+	 * @return bool
+	 */
+	public function matchesContext($object, $type = '')
+	{
+		if ($object->element === 'product') {
+			return (int) $object->id === (int) $this->product_id;
+		}
+		if ($object->element === 'societe') {
+			return (int) $object->id === (int) $this->socid;
+		}
+		if ($object->element === 'category') {
+			$fields = array('' => 'catid', 'customer' => 'catid', 'propal' => 'catid_propal', 'order' => 'catid_order', 'invoice' => 'catid_invoice', 'contract' => 'catid_contract');
+			return isset($fields[$type]) && (int) $object->id === (int) $this->{$fields[$type]};
+		}
+		return false;
 	}
 
 	/**
@@ -460,7 +574,8 @@ class PriceList extends CommonObject
 		$this->price = $obj->price;
 		$this->tx_discount = $obj->tx_discount;
 		$this->cost_price = $obj->cost_price;
-		$this->use_product_cost_price = !empty($obj->use_product_cost_price) ? (int) $obj->use_product_cost_price : 0;
+		$this->cost_price_source = self::getCostPriceSourceForRow($obj);
+		$this->use_product_cost_price = $this->cost_price_source === 'product' ? 1 : 0;
 		$this->user_creation_id = $obj->fk_user_creation;
 	}
 
@@ -468,15 +583,67 @@ class PriceList extends CommonObject
 	 * Validate price list values before writing.
 	 *
 	 * @param Translate $langs Translation handler
+	 * @param User $user Acting user
 	 * @return int
 	 */
-	private function validatePriceListValues($langs)
+	private function validatePriceListValues($langs, $user)
 	{
-		$this->normalizeCostPriceMode();
+		global $conf;
+		$langs->load('pricelist@pricelist');
+		if (!isModEnabled('pricelist') || (!empty($this->entity) && (int) $this->entity !== (int) $conf->entity)) {
+			$this->error = $langs->trans('NotEnoughPermissions');
+			return -1;
+		}
+		$product = new Product($this->db);
+		if ($product->fetch((int) $this->product_id) <= 0
+			|| !in_array((int) $product->entity, array_map('intval', explode(',', getEntity('product'))), true)) {
+			$this->error = $langs->trans('ErrorRecordNotFound');
+			return -1;
+		}
+		$canWrite = (int) $product->type === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer');
+		if (!$canWrite || !checkUserAccessToObject($user, array((int) $product->type === 1 ? 'service' : 'product'), $product, 'product&product')) {
+			$this->error = $langs->trans('NotEnoughPermissions');
+			return -1;
+		}
+		if (!is_numeric(price2num($this->from_qty)) || (float) price2num($this->from_qty) <= 0) {
+			$this->error = $langs->trans('AllFieldIsRequired');
+			return -1;
+		}
+
+		if ((int) $this->socid > 0) {
+			$thirdparty = new Societe($this->db);
+			if (!$user->hasRight('societe', 'lire') || $thirdparty->fetch((int) $this->socid) <= 0
+				|| !in_array((int) $thirdparty->entity, array_map('intval', explode(',', getEntity('societe'))), true)
+				|| !checkUserAccessToObject($user, array('societe'), $thirdparty, 'societe')) {
+				$this->error = $langs->trans('NotEnoughPermissions');
+				return -1;
+			}
+		}
+		foreach (array('catid' => 2, 'catid_propal' => 23, 'catid_order' => 16, 'catid_invoice' => 17, 'catid_contract' => 450022) as $property => $categoryType) {
+			if ((int) $this->$property > 0) {
+				$category = new Categorie($this->db);
+				if (!$user->hasRight('categorie', 'lire') || $category->fetch((int) $this->$property) <= 0
+					|| (int) $category->type !== $categoryType
+					|| !in_array((int) $category->entity, array_map('intval', explode(',', getEntity('categorie'))), true)) {
+					$this->error = $langs->trans('NotEnoughPermissions');
+					return -1;
+				}
+			}
+		}
+		if ($this->normalizeCostPriceMode() < 0) {
+			return -1;
+		}
+		if ($this->cost_price_source === 'dynamicprices') {
+			$availability = PriceListCompatibility::getDynamicPricesAvailability();
+			if (!$availability['available'] || !$user->hasRight('dynamicsprices', 'cost', 'read')) {
+				$this->error = $langs->trans($availability['available'] ? 'PriceListDynamicCostForbidden' : $availability['reason']);
+				return -1;
+			}
+		}
 
 		$priceFilled = dol_strlen($this->price);
 		$discountFilled = dol_strlen($this->tx_discount);
-		$costFilled = dol_strlen($this->cost_price) || !empty($this->use_product_cost_price);
+		$costFilled = dol_strlen($this->cost_price) || $this->cost_price_source !== 'custom';
 
 		if ((!$priceFilled && !$discountFilled && !$costFilled) || ($priceFilled && $discountFilled)) {
 			$this->error = $langs->trans('FillPriceOrDiscountField');
@@ -540,14 +707,42 @@ class PriceList extends CommonObject
 	/**
 	 * Normalize the cost price mode before persistence.
 	 *
-	 * @return void
+	 * @return int 1 on success, -1 on invalid input
 	 */
 	private function normalizeCostPriceMode()
 	{
-		$this->use_product_cost_price = !empty($this->use_product_cost_price) ? 1 : 0;
-		if (!empty($this->use_product_cost_price)) {
-			$this->cost_price = null;
+		global $langs;
+		$this->cost_price_source = self::getCostPriceSourceForRow($this);
+		if (!in_array($this->cost_price_source, array('custom', 'product', 'dynamicprices'), true)) {
+			$this->error = $langs->trans('PriceListInvalidCostSource');
+			return -1;
 		}
+		// The legacy column is a compatibility projection, never an alternative authority.
+		$this->use_product_cost_price = $this->cost_price_source === 'product' ? 1 : 0;
+		if ($this->cost_price_source !== 'custom') {
+			$this->cost_price = null;
+		} elseif ($this->cost_price !== null && $this->cost_price !== '') {
+			$value = price2num($this->cost_price, 'MU', 2);
+			if (!is_numeric($value) || !is_finite((float) $value)) {
+				$this->error = $langs->trans('PriceListInvalidCostPrice');
+				return -1;
+			}
+			$this->cost_price = $value;
+		}
+		return 1;
+	}
+
+	/**
+	 * Resolve the explicit source, converting a legacy row only when no source exists.
+	 * @param stdClass|PriceList $row Price row
+	 * @return string
+	 */
+	public static function getCostPriceSourceForRow($row)
+	{
+		if (isset($row->cost_price_source)) {
+			return (string) $row->cost_price_source;
+		}
+		return !empty($row->use_product_cost_price) ? 'product' : 'custom';
 	}
 
 	/**
@@ -633,19 +828,61 @@ class PriceList extends CommonObject
 	 */
 	public function getEffectiveCostPriceForRow($row)
 	{
-		if (!empty($row->use_product_cost_price)) {
-			$productId = $this->getRowProductId($row);
-			if ($productId <= 0) {
+		global $conf, $user;
+		$this->cost_price_warning = '';
+		$source = self::getCostPriceSourceForRow($row);
+		$productId = $this->getRowProductId($row);
+		if ($source === 'custom') {
+			if (!isset($row->cost_price) || $row->cost_price === '') {
 				return null;
 			}
-
+			$value = price2num($row->cost_price, 'MU', 2);
+			return is_numeric($value) && is_finite((float) $value) ? (float) $value : null;
+		}
+		if ($source === 'product') {
 			return $this->getProductCostPrice($productId);
 		}
-		if (isset($row->cost_price) && dol_strlen($row->cost_price)) {
-			return (float) price2num($row->cost_price);
+		if ($source !== 'dynamicprices') {
+			$this->cost_price_warning = 'PriceListInvalidCostSource';
+			return null;
 		}
-
-		return null;
+		$this->cost_price_warning = 'PriceListDynamicCostUnavailable';
+		$entity = isset($row->cost_context_entity) ? (int) $row->cost_context_entity : (int) $conf->entity;
+		$element = isset($row->cost_context_element) ? $row->cost_context_element : '';
+		if ($entity <= 0 || ($entity !== (int) $conf->entity && (!in_array($element, array('propal', 'commande', 'facture', 'facturerec', 'contrat'), true) || !in_array($entity, array_map('intval', explode(',', getEntity($element))), true)))) {
+			return null;
+		}
+		$availability = PriceListCompatibility::getDynamicPricesAvailability($this->db, $entity);
+		if (!$availability['available']) {
+			$this->cost_price_warning = $availability['reason'];
+			return null;
+		}
+		if (!$user->hasRight('dynamicsprices', 'cost', 'read')) {
+			$this->cost_price_warning = 'PriceListDynamicCostForbidden';
+			return null;
+		}
+		$product = new Product($this->db);
+		if ($productId <= 0 || $product->fetch($productId) <= 0
+			|| !in_array((int) $product->entity, array_map('intval', explode(',', getEntity('product'))), true)) {
+			return null;
+		}
+		$permission = (int) $product->type === 1 ? 'service' : 'product';
+		if (!$user->hasRight($permission, 'read')
+			|| !checkUserAccessToObject($user, array($permission), $product, 'product&product')) {
+			return null;
+		}
+		try {
+			$service = new DynamicPricesCostService($this->db);
+			$value = $service->getDynamicCostPrice($productId, $entity, array('require_success' => true));
+		} catch (Throwable $exception) {
+			dol_syslog(__METHOD__.' DynamicPrices cost unavailable', LOG_WARNING);
+			return null;
+		}
+		if ($value === null || !is_numeric($value) || !is_finite((float) $value)) {
+			return null;
+		}
+		$this->cost_price_warning = '';
+		return (float) price2num($value, 'MU');
 	}
 
 	/**
@@ -656,15 +893,19 @@ class PriceList extends CommonObject
 	 */
 	public function getProductCostPrice($productId)
 	{
+		global $user;
 		$product = new Product($this->db);
-		if ($productId <= 0 || $product->fetch($productId) <= 0) {
+		if ($productId <= 0 || $product->fetch($productId) <= 0
+			|| !in_array((int) $product->entity, array_map('intval', explode(',', getEntity('product'))), true)) {
 			return null;
 		}
-		if (!isset($product->cost_price) || !dol_strlen($product->cost_price)) {
+		$permission = (int) $product->type === 1 ? 'service' : 'product';
+		if (!$user->hasRight($permission, 'read') || !checkUserAccessToObject($user, array($permission), $product, 'product&product')
+			|| !isset($product->cost_price) || $product->cost_price === '') {
 			return null;
 		}
-
-		return (float) price2num($product->cost_price);
+		$value = price2num($product->cost_price, 'MU', 2);
+		return is_numeric($value) && is_finite((float) $value) ? (float) $value : null;
 	}
 
 	/**
@@ -1034,7 +1275,7 @@ class PriceList extends CommonObject
 	 */
 	private function fetchBestPriceForEntity($idproduct, $qty, $where, $entity, $order, $exceptField = '')
 	{
-		$sql = "SELECT rowid, fk_product, price, tx_discount, cost_price, use_product_cost_price, from_qty";
+		$sql = "SELECT rowid, fk_product, price, tx_discount, cost_price, cost_price_source, use_product_cost_price, from_qty";
 		$sql .= " FROM ".MAIN_DB_PREFIX.$this->table_element." as t";
 		$sql .= " WHERE t.entity = ".((int) $entity);
 		$sql .= " AND t.fk_product = ".((int) $idproduct);
@@ -1117,11 +1358,12 @@ class PriceList extends CommonObject
 		$sql .= " l.price,";
 		$sql .= " l.tx_discount,";
 		$sql .= " l.cost_price,";
-		$sql .= " l.use_product_cost_price,";
+		$sql .= " l.cost_price_source, l.use_product_cost_price,";
 		$sql .= " u.login";
 		$sql .= " FROM ".MAIN_DB_PREFIX."pricelist_log as l";
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."user as u ON u.rowid = l.fk_user";
 		$sql .= " WHERE l.fk_pricelist = ".((int) $this->id);
+		$sql .= " AND l.entity = ".((int) $this->entity);
 		$sql .= " ORDER BY l.datec ASC, l.rowid ASC";
 
 		$resql = $this->db->query($sql);
@@ -1158,7 +1400,7 @@ class PriceList extends CommonObject
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."pricelist_log (";
 		$sql .= "entity, fk_pricelist, datec, fk_user, change_type,";
 		$sql .= " fk_product, fk_soc, fk_cat, fk_cat_propal, fk_cat_order, fk_cat_invoice, fk_cat_contract,";
-		$sql .= " from_qty, price, tx_discount, cost_price, use_product_cost_price";
+		$sql .= " from_qty, price, tx_discount, cost_price, cost_price_source, use_product_cost_price";
 		$sql .= ") VALUES (";
 		$sql .= ((int) $entity).",";
 		$sql .= ((int) $this->id).",";
@@ -1176,7 +1418,7 @@ class PriceList extends CommonObject
 		$sql .= $this->formatNullablePrice($this->price).",";
 		$sql .= $this->formatNullablePrice($this->tx_discount).",";
 		$sql .= $this->formatNullablePrice($this->cost_price).",";
-		$sql .= ((int) $this->use_product_cost_price);
+		$sql .= "'".$this->db->escape($this->cost_price_source)."',".((int) $this->use_product_cost_price);
 		$sql .= ")";
 
 		$resql = $this->db->query($sql);
@@ -1197,7 +1439,10 @@ class PriceList extends CommonObject
 	 */
 	private function hasChangedComparedTo($oldcopy)
 	{
-		foreach (array('product_id', 'socid', 'catid', 'catid_propal', 'catid_order', 'catid_invoice', 'catid_contract', 'use_product_cost_price') as $property) {
+		if (self::getCostPriceSourceForRow($this) !== self::getCostPriceSourceForRow($oldcopy)) {
+			return true;
+		}
+		foreach (array('product_id', 'socid', 'catid', 'catid_propal', 'catid_order', 'catid_invoice', 'catid_contract') as $property) {
 			if ((int) $this->$property !== (int) $oldcopy->$property) {
 				return true;
 			}

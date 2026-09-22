@@ -24,29 +24,32 @@ require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
 dol_include_once('/pricelist/lib/pricelist.lib.php');
 
-$id = GETPOST('id');
-$action = GETPOST('action');
-$confirm = GETPOST('confirm');
-$productid = GETPOST('productid');
-$catid = GETPOST('catid');
-$catid_propal = GETPOST('catid_propal');
-$catid_order = GETPOST('catid_order');
-$catid_invoice = GETPOST('catid_invoice');
-$catid_contract = GETPOST('catid_contract');
-$qty = GETPOST('qty');
-$price = GETPOST('price');
-$price_ttc = GETPOST('price_ttc');
+$id = GETPOSTINT('id');
+$action = GETPOST('action', 'aZ09');
+$confirm = GETPOST('confirm', 'aZ09');
+$productid = GETPOSTINT('productid');
+$catid = GETPOSTINT('catid');
+$catid_propal = GETPOSTINT('catid_propal');
+$catid_order = GETPOSTINT('catid_order');
+$catid_invoice = GETPOSTINT('catid_invoice');
+$catid_contract = GETPOSTINT('catid_contract');
+$qty = GETPOST('qty', 'alphanohtml');
+$price = GETPOST('price', 'alphanohtml');
+$price_ttc = GETPOST('price_ttc', 'alphanohtml');
 $price_input_mode = GETPOST('price_input_mode', 'aZ09');
-$tx_discount = GETPOST('tx_discount');
-$cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
-$use_product_cost_price = GETPOSTINT('use_product_cost_price');
-$lineid = GETPOST('lineid');
+$tx_discount = GETPOST('tx_discount', 'alphanohtml');
+$cost_price = GETPOST('cost_price', 'alphanohtml'); // Retrieve cost price field // Récupère le prix de revient
+$cost_price_source = GETPOSTISSET('cost_price_source') ? GETPOST('cost_price_source', 'aZ09') : (GETPOSTINT('use_product_cost_price') ? 'product' : 'custom');
+$lineid = GETPOSTINT('lineid');
 $linesid = GETPOST('linesid', 'array');
 
 $pricelist = new PriceList($db);
 $object = new Societe($db);
-$object->fetch($id);
-if (!pricelistCanReadPrices($user)) {
+if ($object->fetch($id) <= 0 || !$user->hasRight('societe', 'lire') || !$object->client) {
+	accessforbidden();
+}
+restrictedArea($user, 'societe', $object->id, 'societe');
+if (!(getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') > 0 ? ($user->hasRight('product', 'product_advance', 'read_prices') || $user->hasRight('service', 'service_advance', 'read_prices')) : ($user->hasRight('product', 'read') || $user->hasRight('service', 'read')))) {
     accessforbidden();
 }
 
@@ -64,7 +67,7 @@ $langs->load('pricelist@pricelist');
 $form = new Form($db);
 
 $arrayofjs = array();
-if (pricelistCanWritePrices($user)) {
+if (($user->hasRight('produit', 'creer') || $user->hasRight('service', 'creer'))) {
     $arrayofjs[] = '/pricelist/js/delete.js';
 }
 $arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
@@ -72,7 +75,6 @@ $arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
 llxHeader('', $langs->trans('ThirdParty'), '', '', '', '', $arrayofjs);
 
 $head = societe_prepare_head($object);
-$head = pricelistEnsureObjectHeadTab($head, 'thirdparty', (int) $object->id);
 dol_fiche_head($head, 'pricelist', $langs->trans("ThirdParty"), 0, 'company');
 dol_banner_tab($object, 'id', '', ($user->socid ? 0 : 1), 'rowid');
 dol_fiche_end();

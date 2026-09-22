@@ -26,32 +26,35 @@ dol_include_once('/pricelist/class/pricelist.class.php');
 dol_include_once('/pricelist/class/pricelistcompatibility.class.php');
 dol_include_once('/pricelist/lib/pricelist.lib.php');
 
-$id=GETPOST('id');
+$id=GETPOSTINT('id');
 $label=GETPOST('label', 'alpha');
 $type = GETPOST('type', 'aZ09');
-$action = GETPOST('action');
-$confirm = GETPOST('confirm');
-$productid = GETPOST('productid');
-$socid = GETPOST('socid');
-$catid = GETPOST('catid');
-$catid_propal = GETPOST('catid_propal');
-$catid_order = GETPOST('catid_order');
-$catid_invoice = GETPOST('catid_invoice');
-$catid_contract = GETPOST('catid_contract');
-$qty = GETPOST('qty');
-$price = GETPOST('price');
-$price_ttc = GETPOST('price_ttc');
+$action = GETPOST('action', 'aZ09');
+$confirm = GETPOST('confirm', 'aZ09');
+$productid = GETPOSTINT('productid');
+$socid = GETPOSTINT('socid');
+$catid = GETPOSTINT('catid');
+$catid_propal = GETPOSTINT('catid_propal');
+$catid_order = GETPOSTINT('catid_order');
+$catid_invoice = GETPOSTINT('catid_invoice');
+$catid_contract = GETPOSTINT('catid_contract');
+$qty = GETPOST('qty', 'alphanohtml');
+$price = GETPOST('price', 'alphanohtml');
+$price_ttc = GETPOST('price_ttc', 'alphanohtml');
 $price_input_mode = GETPOST('price_input_mode', 'aZ09');
-$tx_discount = GETPOST('tx_discount');
-$cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
-$use_product_cost_price = GETPOSTINT('use_product_cost_price');
-$lineid = GETPOST('lineid');
+$tx_discount = GETPOST('tx_discount', 'alphanohtml');
+$cost_price = GETPOST('cost_price', 'alphanohtml'); // Retrieve cost price field // Récupère le prix de revient
+$cost_price_source = GETPOSTISSET('cost_price_source') ? GETPOST('cost_price_source', 'aZ09') : (GETPOSTINT('use_product_cost_price') ? 'product' : 'custom');
+$lineid = GETPOSTINT('lineid');
 $linesid = GETPOST('linesid', 'array');
 
 $pricelist = new PriceList($db);
 $object = new Categorie($db);
-$object->fetch($id, $label);
-if (!pricelistCanReadPrices($user)) {
+if ($object->fetch($id, $label) <= 0 || !$user->hasRight('categorie', 'lire')
+	|| !in_array((int) $object->entity, array_map('intval', explode(',', getEntity('categorie'))), true)) {
+	accessforbidden();
+}
+if (!(getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') > 0 ? ($user->hasRight('product', 'product_advance', 'read_prices') || $user->hasRight('service', 'service_advance', 'read_prices')) : ($user->hasRight('product', 'read') || $user->hasRight('service', 'read')))) {
 	accessforbidden();
 }
 
@@ -99,7 +102,7 @@ include dol_buildpath('/pricelist/includes/actions_addupdatedelete.inc.php');
 $form = new Form($db);
 
 $arrayofjs = array();
-if (pricelistCanWritePrices($user)) {
+if (($user->hasRight('produit', 'creer') || $user->hasRight('service', 'creer'))) {
     $arrayofjs[] = '/pricelist/js/delete.js';
 }
 $arrayofjs[] = '/pricelist/js/pricelist_ttc.js';

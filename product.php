@@ -25,33 +25,29 @@ require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/pricelist/class/pricelist.class.php');
 dol_include_once('/pricelist/lib/pricelist.lib.php');
 
-$id = GETPOST('id');
-$ref = GETPOST('ref');
-$action = GETPOST('action');
-$confirm = GETPOST('confirm');
-$socid = GETPOST('socid');
-$catid = GETPOST('catid');
-$catid_propal = GETPOST('catid_propal');
-$catid_order = GETPOST('catid_order');
-$catid_invoice = GETPOST('catid_invoice');
-$catid_contract = GETPOST('catid_contract');
-$qty = GETPOST('qty');
-$price = GETPOST('price');
-$price_ttc = GETPOST('price_ttc');
+$id = GETPOSTINT('id');
+$ref = GETPOST('ref', 'alphanohtml');
+$action = GETPOST('action', 'aZ09');
+$confirm = GETPOST('confirm', 'aZ09');
+$socid = GETPOSTINT('socid');
+$catid = GETPOSTINT('catid');
+$catid_propal = GETPOSTINT('catid_propal');
+$catid_order = GETPOSTINT('catid_order');
+$catid_invoice = GETPOSTINT('catid_invoice');
+$catid_contract = GETPOSTINT('catid_contract');
+$qty = GETPOST('qty', 'alphanohtml');
+$price = GETPOST('price', 'alphanohtml');
+$price_ttc = GETPOST('price_ttc', 'alphanohtml');
 $price_input_mode = GETPOST('price_input_mode', 'aZ09');
-$tx_discount = GETPOST('tx_discount');
-$cost_price = GETPOST('cost_price'); // Retrieve cost price field // Récupère le prix de revient
-$use_product_cost_price = GETPOSTINT('use_product_cost_price');
-$lineid = GETPOST('lineid');
+$tx_discount = GETPOST('tx_discount', 'alphanohtml');
+$cost_price = GETPOST('cost_price', 'alphanohtml'); // Retrieve cost price field // Récupère le prix de revient
+$cost_price_source = GETPOSTISSET('cost_price_source') ? GETPOST('cost_price_source', 'aZ09') : (GETPOSTINT('use_product_cost_price') ? 'product' : 'custom');
+$lineid = GETPOSTINT('lineid');
 $linesid = GETPOST('linesid', 'array');
 
-// Security check
-if (version_compare(DOL_VERSION, '13.0.0') < 0) {
-    if ($user->societe_id) {
-        accessforbidden();
-    }
-} else if ($user->socid) {
-    accessforbidden();
+// Price list administration is restricted to internal users.
+if ($user->socid) {
+	accessforbidden();
 }
 
 $fieldvalue = (! empty($id) ? $id : (! empty($ref) ? $ref : ''));
@@ -62,10 +58,14 @@ $result = restrictedArea($user, 'produit|service', $fieldvalue, 'product&product
 $object = new Product($db);
 $res = $object->fetch($id, $ref);
 if ($res <= 0) {
-    dol_print_error($db);
+    accessforbidden($langs->trans('ErrorRecordNotFound'));
 }
-if (!pricelistCanReadPrices($user, (int) $object->type)) {
+if (!(getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') > 0 ? ((int) $object->type === 1 ? $user->hasRight('service', 'service_advance', 'read_prices') : $user->hasRight('product', 'product_advance', 'read_prices')) : ((int) $object->type === 1 ? $user->hasRight('service', 'read') : $user->hasRight('product', 'read')))) {
     accessforbidden();
+}
+
+if (!in_array((int) $object->entity, array_map('intval', explode(',', getEntity('product'))), true)) {
+	accessforbidden();
 }
 
 $pricelist = new PriceList($db);
@@ -83,7 +83,7 @@ $langs->loadLangs(array('products', 'categories', 'pricelist@pricelist'));
 $form = new Form($db);
 
 $arrayofjs = array();
-if (pricelistCanWritePrices($user, (int) $object->type)) {
+if ((int) $object->type === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer')) {
     $arrayofjs[] = '/pricelist/js/delete.js';
 }
 $arrayofjs[] = '/pricelist/js/pricelist_ttc.js';
@@ -92,7 +92,6 @@ $title = $langs->trans('CardProduct'.$object->type).' '.$object->label;
 llxHeader('', $title, '', '', '', '', $arrayofjs);
 
 $head = product_prepare_head($object, $user);
-$head = pricelistEnsureObjectHeadTab($head, 'product', (int) $object->id);
 $picto = ($object->type == 1 ? 'service' : 'product');
 
 dol_fiche_head($head, 'pricelist', $title, 0, $picto);

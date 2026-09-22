@@ -2,7 +2,7 @@
 
 dol_include_once('/pricelist/lib/pricelist.lib.php');
 
-$canDeletePriceListConfirm = isset($canDeletePriceList) ? (bool) $canDeletePriceList : pricelistCanWritePrices($user);
+$canDeletePriceListConfirm = isset($canDeletePriceList) ? (bool) $canDeletePriceList : ($user->hasRight('produit', 'creer') || $user->hasRight('service', 'creer'));
 
 if ($action == 'delete_price' && $canDeletePriceListConfirm) {
 	$typeparam = (isset($type) && $type ? '&type='.urlencode($type) : '');

@@ -113,26 +113,16 @@ if (!function_exists('pricelist_get_history_value')) {
 				$value = (float) price2num($row->tx_discount);
 			}
 		}
-		if (dol_strlen($row->cost_price)) {
+		if (PriceList::getCostPriceSourceForRow($row) === 'custom' && dol_strlen($row->cost_price)) {
 			$parts[] = $langs->trans('CostPriceHT').': '.price($row->cost_price);
 			if ($type === '') {
 				$type = 'cost_price';
 				$value = (float) price2num($row->cost_price);
 			}
 		}
-		if (!empty($row->use_product_cost_price)) {
-			$label = $langs->trans('ProductCostPrice');
-			if (is_object($db) && !empty($row->fk_product)) {
-				$product = new Product($db);
-				if ($product->fetch((int) $row->fk_product) > 0 && dol_strlen($product->cost_price)) {
-					$label .= ': '.price($product->cost_price);
-					if ($type === '') {
-						$type = 'cost_price';
-						$value = (float) price2num($product->cost_price);
-					}
-				}
-			}
-			$parts[] = $label;
+		$source = PriceList::getCostPriceSourceForRow($row);
+		if ($source !== 'custom') {
+			$parts[] = $langs->trans('PriceListCostSource').': '.$langs->trans($source === 'product' ? 'ProductCostPrice' : 'PriceListDynamicCost');
 		}
 
 		return array(
@@ -256,7 +246,7 @@ if (!function_exists('pricelist_get_minimum_price_warnings')) {
 
 $pricelisttypeparam = (isset($type) && $type ? '&type='.urlencode($type) : '');
 $currentProductTypeForRights = ($object->element == 'product' && isset($object->type)) ? (int) $object->type : null;
-$canCreatePriceList = pricelistCanWritePrices($user, $currentProductTypeForRights);
+$canCreatePriceList = (($currentProductTypeForRights === null || $currentProductTypeForRights === 0) && $user->hasRight('produit', 'creer') || ($currentProductTypeForRights === null || $currentProductTypeForRights === 1) && $user->hasRight('service', 'creer'));
 $canDeletePriceList = $canCreatePriceList;
 $showPropalCategories = pricelistIsPropalCategoryAvailable();
 $showOrderInvoiceCategories = pricelistIsOrderInvoiceCategoryAvailable();
@@ -379,11 +369,13 @@ if ($list !== null) {
 		print '<td class="right">'.(dol_strlen($obj->price) ? price($obj->price) : '-').'</td>';
 		print '<td class="right">'.(dol_strlen($obj->tx_discount) ? price($obj->tx_discount) : '-').'</td>';
 		$effectiveCostPrice = $obj->getEffectiveCostPriceForRow($obj);
-		if (!empty($obj->use_product_cost_price)) {
-			print '<td class="right">'.($effectiveCostPrice !== null ? $langs->trans('ProductCostPrice').': '.price($effectiveCostPrice) : $langs->trans('ProductCostPrice')).'</td>';
-		} else {
-			print '<td class="right">'.($effectiveCostPrice !== null ? price($effectiveCostPrice) : '-').'</td>';
+		$source = PriceList::getCostPriceSourceForRow($obj);
+		$costLabel = $source === 'custom' ? '' : $langs->trans($source === 'product' ? 'ProductCostPrice' : 'PriceListDynamicCost').': ';
+		print '<td class="right">'.$costLabel.($effectiveCostPrice !== null ? price($effectiveCostPrice) : '-');
+		if ($obj->cost_price_warning !== '') {
+			print ' '.$form->textwithpicto('', $langs->trans($obj->cost_price_warning), 1, 'warning');
 		}
+		print '</td>';
 
 		if (getDolGlobalInt('PRICELIST_SHOW_PRICES_TTC', 0) > 0) {
 			$pu = dol_strlen($obj->price) ? $obj->price : $product->price;
@@ -399,7 +391,7 @@ if ($list !== null) {
 		$tooltip = pricelist_get_history_tooltip($db, $obj, $langs);
 		print '<td class="center">'.$form->textwithpicto('', $tooltip, 1, 'info', '', 0).'</td>';
 
-		$rowCanWrite = pricelistCanWritePrices($user, is_object($product) && isset($product->type) ? (int) $product->type : null);
+		$rowCanWrite = ((int) $product->type === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'));
 		if ($canCreatePriceList || $canDeletePriceList) {
 			print '<td class="right nowrap">';
 			if ($rowCanWrite) {
@@ -559,13 +551,23 @@ if ($action == 'add' || $action == 'edit_price') {
 	print '</tr>';
 
 	print '<tr>';
-	print '<td>'.$langs->trans('UseProductCostPrice').'</td>';
-	print '<td colspan="2">'.$form->selectyesno('use_product_cost_price', (int) $use_product_cost_price, 1).ajax_combobox('use_product_cost_price').'</td>';
+	print '<td>'.$langs->trans('PriceListCostSource').'</td>';
+	$sourceOptions = array('custom' => $langs->trans('PriceListCustomCost'), 'product' => $langs->trans('ProductCostPrice'));
+	$dynamicAvailability = PriceListCompatibility::getDynamicPricesAvailability();
+	$dynamicAllowed = $dynamicAvailability['available'] && $user->hasRight('dynamicsprices', 'cost', 'read');
+	if ($dynamicAllowed || $cost_price_source === 'dynamicprices') {
+		$sourceOptions['dynamicprices'] = $langs->trans('PriceListDynamicCost');
+	}
+	print '<td colspan="2">'.$form->selectarray('cost_price_source', $sourceOptions, $cost_price_source, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200');
+	if (!$dynamicAllowed) {
+		print '<br><span class="opacitymedium">'.$langs->trans($dynamicAvailability['available'] ? 'PriceListDynamicCostForbidden' : $dynamicAvailability['reason']).'</span>';
+	}
+	print '</td>';
 	print '</tr>';
 
 	print '<tr>';
 	print '<td>'.$langs->trans('CostPriceHT').'</td>';
-	print '<td colspan="2"><input class="flat maxwidth100" type="text" name="cost_price" value="'.(dol_strlen($cost_price) ? dol_escape_htmltag($cost_price) : '').'" placeholder="'.$langs->trans('CostPrice').'"></td>';
+	print '<td colspan="2"><input class="flat maxwidth100" type="text" name="cost_price"'.($cost_price_source !== 'custom' ? ' disabled' : '').' value="'.(dol_strlen($cost_price) ? dol_escape_htmltag($cost_price) : '').'" placeholder="'.$langs->trans('CostPrice').'"></td>';
 	print '</tr>';
 
 	print '</table>';

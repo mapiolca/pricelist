@@ -68,22 +68,6 @@ if (!function_exists('pricelist_get_product_type_for_rights')) {
 	}
 }
 
-if (!function_exists('pricelist_check_write_right_for_product')) {
-	/**
-	 * Check write rights for the submitted product/service.
-	 *
-	 * @param DoliDB $db        Database handler
-	 * @param User   $user      User
-	 * @param int    $productid Product id
-	 * @return bool
-	 */
-	function pricelist_check_write_right_for_product($db, $user, $productid)
-	{
-		$productType = pricelist_get_product_type_for_rights($db, $productid);
-		return pricelistCanWritePrices($user, $productType);
-	}
-}
-
 if (!function_exists('pricelist_normalize_price_inputs')) {
 	/**
 	 * Normalize HT/TTC input before validation and storage.
@@ -142,10 +126,10 @@ if (!function_exists('pricelist_apply_request_to_line')) {
 	 * @param mixed     $price         HT price
 	 * @param mixed     $txDiscount    Discount percent
 	 * @param mixed     $costPrice     Cost price
-	 * @param int       $useProductCostPrice Use product native cost price
+	 * @param string    $costPriceSource Canonical cost source
 	 * @return void
 	 */
-	function pricelist_apply_request_to_line($line, $object, $type, $productid, $socid, $catid, $catidPropal, $catidOrder, $catidInvoice, $catidContract, $qty, $price, $txDiscount, $costPrice, $useProductCostPrice)
+	function pricelist_apply_request_to_line($line, $object, $type, $productid, $socid, $catid, $catidPropal, $catidOrder, $catidInvoice, $catidContract, $qty, $price, $txDiscount, $costPrice, $costPriceSource)
 	{
 		$existingCatidPropal = !empty($line->catid_propal) ? (int) $line->catid_propal : null;
 		$existingCatidOrder = !empty($line->catid_order) ? (int) $line->catid_order : null;
@@ -192,14 +176,14 @@ if (!function_exists('pricelist_apply_request_to_line')) {
 		$line->from_qty = $qty;
 		$line->price = $price;
 		$line->tx_discount = $txDiscount;
-		$line->use_product_cost_price = !empty($useProductCostPrice) ? 1 : 0;
-		$line->cost_price = !empty($line->use_product_cost_price) ? null : $costPrice;
+		$line->cost_price_source = $costPriceSource;
+		$line->cost_price = $costPriceSource === 'custom' ? $costPrice : null;
 	}
 }
 
 $editpricelist = null;
 $lineid = (int) $lineid;
-$productid = (int) $productid;
+$productid = isset($productid) ? (int) $productid : 0;
 $socid = isset($socid) ? (int) $socid : 0;
 $catid = isset($catid) ? (int) $catid : 0;
 $catid_propal = isset($catid_propal) ? (int) $catid_propal : 0;
@@ -208,7 +192,22 @@ $catid_invoice = isset($catid_invoice) ? (int) $catid_invoice : 0;
 $catid_contract = isset($catid_contract) ? (int) $catid_contract : 0;
 $price_input_mode = isset($price_input_mode) ? $price_input_mode : '';
 $price_ttc = isset($price_ttc) ? $price_ttc : '';
-$use_product_cost_price = isset($use_product_cost_price) ? (int) $use_product_cost_price : 0;
+$cost_price_source = isset($cost_price_source) ? $cost_price_source : 'custom';
+
+// A row action must remain inside the displayed object, including mass deletion.
+if (in_array($action, array('edit_price', 'update_confirm', 'confirm_delete_price', 'confirm_delete_prices'), true)) {
+	$requestedLines = $action === 'confirm_delete_prices' && is_array($linesid) ? $linesid : array($lineid);
+	foreach ($requestedLines as $requestedId) {
+		$requestedRow = new PriceList($db);
+		if ($requestedRow->fetch((int) $requestedId) <= 0 || !$requestedRow->matchesContext($object, isset($type) ? $type : '')) {
+			accessforbidden();
+		}
+		$productType = pricelist_get_product_type_for_rights($db, (int) $requestedRow->product_id);
+		if ($productType === null || !($productType === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
+			accessforbidden();
+		}
+	}
+}
 
 if (in_array($action, array('add_confirm', 'update_confirm')) && GETPOST('cancel')) {
 	header('Location: '.pricelist_get_redirect_url($object, isset($type) ? $type : ''));
@@ -217,7 +216,8 @@ if (in_array($action, array('add_confirm', 'update_confirm')) && GETPOST('cancel
 
 if ($action == 'add_confirm') {
 	$submittedProductId = pricelist_get_requested_product_id($object, $productid);
-	if (!pricelist_check_write_right_for_product($db, $user, $submittedProductId)) {
+	$productType = pricelist_get_product_type_for_rights($db, $submittedProductId);
+	if ($productType === null || !($productType === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
 		accessforbidden();
 	} elseif (pricelist_normalize_price_inputs($db, $submittedProductId, $price, $price_ttc, $price_input_mode) < 0) {
 		setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
@@ -226,7 +226,7 @@ if ($action == 'add_confirm') {
 	} elseif ($object->element != 'product' && empty($productid)) {
 		setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
 	} else {
-		pricelist_apply_request_to_line($pricelist, $object, isset($type) ? $type : '', $productid, $socid, $catid, $catid_propal, $catid_order, $catid_invoice, $catid_contract, $qty, $price, $tx_discount, $cost_price, $use_product_cost_price);
+		pricelist_apply_request_to_line($pricelist, $object, isset($type) ? $type : '', $productid, $socid, $catid, $catid_propal, $catid_order, $catid_invoice, $catid_contract, $qty, $price, $tx_discount, $cost_price, $cost_price_source);
 
 		$res = $pricelist->create($user);
 		if ($res < 0) {
@@ -250,7 +250,8 @@ if ($action == 'update_confirm') {
 	} else {
 		$qty = $editpricelist->from_qty;
 		$submittedProductId = pricelist_get_requested_product_id($object, $productid);
-		if (!pricelist_check_write_right_for_product($db, $user, $submittedProductId)) {
+		$productType = pricelist_get_product_type_for_rights($db, $submittedProductId);
+		if ($productType === null || !($productType === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
 			accessforbidden();
 		} elseif (pricelist_normalize_price_inputs($db, $submittedProductId, $price, $price_ttc, $price_input_mode) < 0) {
 			setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
@@ -262,7 +263,7 @@ if ($action == 'update_confirm') {
 			setEventMessage($langs->trans('AllFieldIsRequired'), 'errors');
 			$action = 'edit_price';
 		} else {
-			pricelist_apply_request_to_line($editpricelist, $object, isset($type) ? $type : '', $productid, $socid, $catid, $catid_propal, $catid_order, $catid_invoice, $catid_contract, $qty, $price, $tx_discount, $cost_price, $use_product_cost_price);
+			pricelist_apply_request_to_line($editpricelist, $object, isset($type) ? $type : '', $productid, $socid, $catid, $catid_propal, $catid_order, $catid_invoice, $catid_contract, $qty, $price, $tx_discount, $cost_price, $cost_price_source);
 			$res = $editpricelist->update($user);
 			if ($res < 0) {
 				setEventMessages($editpricelist->error, $editpricelist->errors, 'errors');
@@ -277,7 +278,8 @@ if ($action == 'update_confirm') {
 
 if ($action == 'confirm_delete_price' && $confirm == 'yes') {
 	if ($lineid > 0 && $pricelist->fetch($lineid) > 0) {
-		if (!pricelist_check_write_right_for_product($db, $user, (int) $pricelist->product_id)) {
+		$productType = pricelist_get_product_type_for_rights($db, (int) $pricelist->product_id);
+		if ($productType === null || !($productType === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
 			accessforbidden();
 		}
 		$res = $pricelist->delete($user);
@@ -294,7 +296,8 @@ if ($action == 'confirm_delete_prices' && $confirm == 'yes') {
 	foreach ($linesid as $lineid) {
 		$lineid = (int) $lineid;
 		if ($lineid > 0 && $pricelist->fetch($lineid) > 0) {
-			if (!pricelist_check_write_right_for_product($db, $user, (int) $pricelist->product_id)) {
+			$productType = pricelist_get_product_type_for_rights($db, (int) $pricelist->product_id);
+			if ($productType === null || !($productType === 1 ? $user->hasRight('service', 'creer') : $user->hasRight('produit', 'creer'))) {
 				accessforbidden();
 			}
 			$res = $pricelist->delete($user);
@@ -317,7 +320,7 @@ if ($action == 'edit_price') {
 		}
 	}
 
-	if ($action == 'edit_price' && is_object($editpricelist)) {
+	if ($action == 'edit_price' && is_object($editpricelist) && !GETPOSTISSET('cost_price_source')) {
 		$productid = (int) $editpricelist->product_id;
 		$socid = (int) $editpricelist->socid;
 		$catid = (int) $editpricelist->catid;
@@ -329,6 +332,6 @@ if ($action == 'edit_price') {
 		$price = $editpricelist->price;
 		$tx_discount = $editpricelist->tx_discount;
 		$cost_price = $editpricelist->cost_price;
-		$use_product_cost_price = (int) $editpricelist->use_product_cost_price;
+		$cost_price_source = $editpricelist->cost_price_source;
 	}
 }

@@ -89,3 +89,26 @@ RequiresDolibarr20Php80=Nécessite Dolibarr 20 ou supérieur et PHP 8.0 ou supé
 RequiresDolibarr22Php80=Nécessite Dolibarr 22 ou supérieur et PHP 8.0 ou supérieur.
 RequiresDolibarr23Php80=Nécessite Dolibarr 23 ou supérieur et PHP 8.0 ou supérieur.
 RequiresPriceListContractCategoriesOption=Nécessite l'activation de l'option PriceList des tags/catégories contrats.
+
+# PriceList 2.3.0
+PriceListCostSource=Source du prix de revient
+PriceListCustomCost=Personnalisé
+PriceListDynamicCost=DynamicPrices
+PriceListDynamicCostDescription=Coût courant valide de DynamicPrices dans l’entité du document ou de consultation. Nécessite les coûts DynamicPrices et leur droit de lecture, ainsi que l’accès au produit. Indépendant de l’automatisation des ventes ; aucun recalcul ni écriture.
+PriceListDynamicPricesDisabled=Le module DynamicsPrices est désactivé.
+PriceListDynamicCostDisabled=Les coûts DynamicPrices sont désactivés dans l’entité concernée.
+PriceListDynamicPricesIncompatible=Le service de lecture des coûts DynamicPrices est absent ou incompatible.
+PriceListDynamicCostForbidden=Le droit de lecture des coûts DynamicPrices est requis.
+PriceListDynamicCostUnavailable=Aucun coût DynamicPrices valide et accessible n’est disponible pour ce produit dans cette entité.
+PriceListInvalidCostSource=Source du prix de revient invalide.
+PriceListInvalidCostPrice=Prix de revient invalide.
+PriceListCostPreserved=Prix de revient existant conservé. Les autres éléments du tarif sont appliqués. %s
+PriceListOptionalModules=Modules recommandés
+PriceListUsefulLinks=Liens utiles
+PriceListRepository=Dépôt du module
+PriceListSupport=Support et anomalies
+PriceListAboutTiers=Tarifs dégressifs par quantité, produit/service, client et catégorie.
+PriceListAboutSources=Prix de revient personnalisé, natif du produit ou courant de DynamicPrices.
+PriceListAboutDocuments=Application aux devis, commandes, factures, factures récurrentes et contrats.
+PriceListAboutHistory=Historique des tarifs, clonage et imports/exports natifs.
+PriceListDependencies=Dépendances requises
