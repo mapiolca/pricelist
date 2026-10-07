@@ -40,6 +40,7 @@ function extractFunction($source, $name)
 foreach (array('dol_eval', 'verifCond', 'price2num', 'complete_head_from_modules') as $name) {
 	eval(extractFunction($native, $name));
 }
+if (strpos($native, 'function dolEvalSimpleCondition(') !== false) { eval(extractFunction($native, 'dolEvalSimpleCondition')); }
 if (strpos($native, 'function dolBuildUrl(') !== false) { eval(extractFunction($native, 'dolBuildUrl')); }
 if (strpos($native, 'function dol_eval_standard(') !== false) { eval(extractFunction($native, 'dol_eval_standard')); }
 if (preg_match('/^\d+\.\d+\.\d+$/', $ref)) {
@@ -54,7 +55,18 @@ if (preg_match('/^\d+\.\d+\.\d+$/', $ref)) {
 	define('DOL_VERSION', $majorVersion[1].'.'.$minorVersion[1]);
 }
 define('MAIN_DB_PREFIX', 'test_long_prefix_');
-define('DOL_DOCUMENT_ROOT', $core.'/htdocs');
+// Minimal include fixtures contain native methods verbatim and simulated collaborators.
+// They stay in the ignored test cache; no checkout or installed core is changed.
+$fixtureRoot = $root.'/.cache/pricing-'.str_replace('.', '-', $ref);
+foreach (array('/product/class', '/core/lib') as $directory) {
+	if (!is_dir($fixtureRoot.$directory)) { mkdir($fixtureRoot.$directory, 0777, true); }
+}
+$customerSource = shell_exec('git -C '.escapeshellarg($core).' show '.escapeshellarg($ref.':htdocs/product/class/productcustomerprice.class.php'));
+$customerFixture = '<?php class ProductCustomerPrice { public $db, $error = ""; public $errors = array(), $lines = array(); public function __construct($db) { $this->db = $db; } '.extractFunction($customerSource, 'fetchAll').' } class PriceByCustomerLine extends stdClass { public function __construct($db) {} }';
+file_put_contents($fixtureRoot.'/product/class/productcustomerprice.class.php', $customerFixture);
+$priceSource = shell_exec('git -C '.escapeshellarg($core).' show '.escapeshellarg($ref.':htdocs/core/lib/price.lib.php'));
+file_put_contents($fixtureRoot.'/core/lib/price.lib.php', '<?php '.extractFunction($priceSource, 'calcul_price_total'));
+define('DOL_DOCUMENT_ROOT', $fixtureRoot);
 define('DOL_URL_ROOT', '');
 class CommonObject {
 	public $import_key; public $context = array();
@@ -74,10 +86,18 @@ class User {
 	public function hasRight(...$path) { return in_array(implode('.', $path), $this->allowed, true); }
 	public function fetch($id, $ref = '') { $this->id = $id ?: 1; return 1; }
 }
-class Product {
-	public $id, $entity, $type, $cost_price, $price_min = 0, $price = 100;
+$nativeProduct = shell_exec('git -C '.escapeshellarg($core).' show '.escapeshellarg($ref.':htdocs/product/class/product.class.php'));
+eval('class NativeSalePrice { '.extractFunction($nativeProduct, 'getSellPrice').' }');
+function forgeSQLFromUniversalSearchCriteria($filter, &$error) { if ($filter !== '') { throw new RuntimeException('Unexpected search filter'); } return ''; }
+function get_default_tva($seller, $buyer, $id) { return 20; }
+function get_localtax($rate, $type, $buyer, $seller, $npr) { return array(0, '0'); }
+function get_default_npr($seller, $buyer, $id) { return 0; }
+class Product extends NativeSalePrice {
+	public $db, $id, $entity, $type, $cost_price, $price_min = 0, $price = 100;
+	public $price_ttc = 120, $price_min_ttc = 0, $price_base_type = 'HT', $tva_tx = 20;
+	public $multiprices = array(), $multiprices_min = array(), $multiprices_ttc = array(), $multiprices_min_ttc = array(), $multiprices_base_type = array(), $prices_by_qty = array(), $prices_by_qty_list = array();
 	public static $data = array();
-	public function __construct($db) {}
+	public function __construct($db) { $this->db = $db; }
 	public function fetch($id, $ref = '') {
 		if ($ref === 'SHARED') { $id = 10; }
 		if (!isset(self::$data[$id])) { return 0; }
@@ -86,8 +106,8 @@ class Product {
 		return 1;
 	}
 }
-class Societe { public $id = 0, $entity = 1; public function __construct($db) {} public function fetch($id, $ref = '') { return 0; } }
-class Categorie { public function __construct($db) {} }
+class Societe { public $id = 0, $entity = 1, $price_level = 0, $country_id = 1; public function __construct($db) {} public static $data = array(); public function fetch($id, $ref = '') { if (!isset(self::$data[$id])) { return 0; } foreach (self::$data[$id] as $key => $value) { $this->$key = $value; } $this->id = $id; return 1; } }
+class Categorie { public function __construct($db) {} public function containing($id, $type, $mode = null) { return array(); } }
 class Translate {
 	public function load($s) {} public function loadLangs($s) {}
 	public function trans($s, ...$args) { return $s.($args ? ':'.implode('|', $args) : ''); }
@@ -100,6 +120,7 @@ $conf = (object) array('entity' => 2, 'global' => (object) $settings);
 $user = new User();
 $user->allowed = array('product.read', 'produit.creer', 'service.read', 'service.creer', 'dynamicsprices.cost.read', 'import.run');
 $langs = new Translate();
+$mysoc = new Societe(null);
 $messages = array();
 function getDolGlobalInt($key, $default = 0) { return (int) ($GLOBALS['settings'][$key] ?? $default); }
 function getDolGlobalString($key, $default = '') { return (string) ($GLOBALS['settings'][$key] ?? $default); }
@@ -107,9 +128,10 @@ function isModEnabled($name) { return $GLOBALS['modules'][$name] ?? false; }
 function getEntity($element) { return $GLOBALS['scopes'][$element] ?? (string) $GLOBALS['conf']->entity; }
 function checkUserAccessToObject($user, $features, $object, $table) { return empty($GLOBALS['denyObject']); }
 function dol_include_once($file) { return true; }
+function GETPOSTINT($name) { return (int) ($_POST[$name] ?? 0); }
 function GETPOSTISSET($name) { return isset($_POST[$name]); }
 function GETPOST($name, $type = '') { return $_POST[$name] ?? ''; }
-class TestHooks { public $resArray = array(); public function executeHooks($name, $parameters, $object = null) { return 0; } }
+class TestHooks { public $resArray = array(), $replacement = array(); public function executeHooks($name, $parameters, $object = null) { $this->resArray = $this->replacement; return $this->replacement ? 1 : 0; } }
 $hookmanager = new TestHooks();
 function dol_strlen($value) { return strlen((string) $value); }
 function dol_syslog($message, $level = 0) {}
@@ -135,7 +157,12 @@ class DynamicPricesCostService {
 
 class Result { public $rows; public function __construct($rows = array()) { $this->rows = $rows; } }
 class TestDB {
+	public $customerPriceRows = array(), $failCustomerPrices = false, $rulePrice = 80, $ruleDiscount = null, $ruleCostSource = 'dynamicprices', $currentError = '', $customerReadCount = 0, $failCustomerReadNumber = 0;
 	public $queries = array(), $records = array(), $costColumns = array(), $migrations = array(), $failMigration = false, $bestEntity = 1;
+	public function error() { return $this->currentError; }
+	public function prefix() { return MAIN_DB_PREFIX; }
+	public function order($field, $order) { return ' ORDER BY '.$field.' '.$order; }
+	public function jdate($s) { return $s; }
 	public function escape($s) { return str_replace("'", "''", (string) $s); }
 	public function sanitize($s) { return $s; }
 	public function idate($s) { return '2026-09-22 00:00:00'; }
@@ -147,6 +174,12 @@ class TestDB {
 	public function free($r) {}
 	public function query($sql) {
 		$this->queries[] = $sql;
+		$this->currentError = '';
+		if (strpos($sql, 'product_customer_price as t') !== false) {
+			$this->customerReadCount++;
+			if ($this->failCustomerPrices || $this->customerReadCount === $this->failCustomerReadNumber) { $this->currentError = 'SQL error'; return false; }
+			return new Result(array_map(static function ($row) { return clone $row; }, $this->customerPriceRows));
+		}
 		if (strpos($sql, 'SHOW TABLES') === 0) { return new Result(array((object) array('table' => 'exists'))); }
 		if (preg_match('/SHOW COLUMNS FROM (\w+)/', $sql, $m)) { return new Result(!empty($this->costColumns[$m[1]]) ? array((object) array('Field' => 'cost_price_source')) : array()); }
 		if (preg_match('/ALTER TABLE (\w+) ADD COLUMN cost_price_source/', $sql, $m)) { $this->costColumns[$m[1]] = true; return true; }
@@ -159,7 +192,7 @@ class TestDB {
 		}
 		if (strpos($sql, 'SELECT name, value') === 0) { return new Result(array((object) array('name' => 'MAIN_MODULE_DYNAMICSPRICES', 'value' => 1))); }
 		if (strpos($sql, 'SELECT rowid, fk_product') === 0) {
-			return new Result(strpos($sql, 't.entity = '.$this->bestEntity) !== false ? array((object) array('rowid' => 50, 'fk_product' => 10, 'price' => 80, 'tx_discount' => null, 'cost_price' => null, 'cost_price_source' => 'dynamicprices', 'use_product_cost_price' => 0, 'from_qty' => 1)) : array());
+			return new Result(strpos($sql, 't.entity = '.$this->bestEntity) !== false ? array((object) array('rowid' => 50, 'fk_product' => 10, 'price' => $this->rulePrice, 'tx_discount' => $this->ruleDiscount, 'cost_price' => null, 'cost_price_source' => $this->ruleCostSource, 'use_product_cost_price' => 0, 'from_qty' => 1)) : array());
 		}
 		if (strpos($sql, 'SELECT') === 0 && strpos($sql, 't.rowid = ') !== false) {
 			return new Result(array_values($this->records));
@@ -289,7 +322,7 @@ foreach (array(0, 1) as $advanced) {
 	}
 }
 $settings['MAIN_USE_ADVANCED_PERMS'] = 0; $user->allowed = $allowed; $user->admin = 0;
-check(count($descriptor->config_page_url) === 1 && $descriptor->version === '2.3.0', 'single settings entry and version');
+check(count($descriptor->config_page_url) === 1 && $descriptor->version === '2.3.1', 'single settings entry and version');
 check(array_column(pricelistAdminPrepareHead(), 2) === array('settings', 'compatibility', 'about'), 'admin tab ordering');
 // Replaying a partially completed migration must preserve canonical rows and all old amounts.
 foreach (array('pricelist', 'pricelist_log') as $table) {
@@ -366,4 +399,6 @@ check(isset($descriptor->export_fields_array[1]['pl.cost_price_source']) && !iss
 check(strpos($descriptor->export_sql_end[1], 'pl.entity = 2') !== false, 'export uses consultation entity');
 check(strpos($descriptor->export_sql_end[1], 'p.entity IN (1,2)') !== false, 'export restricts shared product scope');
 check(isset($descriptor->import_fields_array[1]['p.cost_price_source'], $descriptor->import_fields_array[1]['p.use_product_cost_price']), 'native import preserves legacy mapping and accepts canonical source');
+require __DIR__.'/pricing_modes.php';
+
 echo 'OK: '.$tests.' assertions; native functions '.$ref.' (Dolibarr '.DOL_VERSION.'); PHP '.PHP_VERSION."; simulated DB/provider, no live instance.\n";

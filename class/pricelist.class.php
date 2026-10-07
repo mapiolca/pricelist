@@ -440,9 +440,10 @@ class PriceList extends CommonObject
 	 * @param Societe     $soc          Customer object
 	 * @param float|int   $qty          Quantity
 	 * @param CommonObject|null $sourceObject Propal or contract object
+	 * @param array{unit_price?:float|string|null,base_type?:string,tva_tx?:float|string,remise_percent?:float|string,pqp?:int} $priceContext Actual line price context
 	 * @return int|stdClass 0 if not found, -1 on error, price row when found
 	 */
-	public function get_price($idproduct, $soc, $qty, $sourceObject = null)
+	public function get_price($idproduct, $soc, $qty, $sourceObject = null, $priceContext = array())
 	{
 		global $user, $conf;
 		$product = new Product($this->db);
@@ -481,6 +482,9 @@ class PriceList extends CommonObject
 				return -1;
 			}
 		}
+		if ($socid > 0) {
+			$soc = $customer;
+		}
 		$customerCategories = $this->getCustomerCategoryIds($socid);
 		$prioritySteps = pricelistGetDocumentCategoryPriority()
 			? array('document_category', 'thirdparty', 'customer_category')
@@ -506,7 +510,7 @@ class PriceList extends CommonObject
 			if (is_object($result)) {
 				$result->cost_context_entity = $costEntity;
 				$result->cost_context_element = $costElement;
-				return $this->rejectPriceBelowMinimum($result, $soc);
+				return $this->rejectPriceBelowMinimum($result, $soc, $priceContext);
 			}
 			if ($result < 0) {
 				return -1;
@@ -523,7 +527,7 @@ class PriceList extends CommonObject
 		if (is_object($result)) {
 			$result->cost_context_entity = $costEntity;
 			$result->cost_context_element = $costElement;
-			return $this->rejectPriceBelowMinimum($result, $soc);
+			return $this->rejectPriceBelowMinimum($result, $soc, $priceContext);
 		}
 		if ($result < 0) {
 			return -1;
@@ -692,6 +696,10 @@ class PriceList extends CommonObject
 		}
 
 		$minimumViolation = $this->getMinimumPriceViolation();
+		if ($this->error) {
+			$this->error = $langs->trans($this->error);
+			return -1;
+		}
 		if (is_array($minimumViolation)) {
 			$this->error = $langs->trans(
 				'PriceListBelowMinimumPrice',
@@ -763,11 +771,16 @@ class PriceList extends CommonObject
 			if (class_exists('Societe')) {
 				$soc = new Societe($this->db);
 				if ($soc->fetch((int) $this->socid) <= 0) {
-					$soc = null;
+					$this->error = 'PriceListMinimumPriceUnavailable';
+					return null;
 				}
 			}
 		}
 
+		if ((int) $this->socid > 0 && !is_object($soc)) {
+			$this->error = 'PriceListMinimumPriceUnavailable';
+			return null;
+		}
 		return $this->getMinimumPriceViolationForRow($row, $soc);
 	}
 
@@ -776,48 +789,263 @@ class PriceList extends CommonObject
 	 *
 	 * @param stdClass    $row Price row
 	 * @param object|null $soc Thirdparty context
+	 * @param array{unit_price?:float|string|null,base_type?:string,tva_tx?:float|string,remise_percent?:float|string,pqp?:int} $priceContext Actual line price context
 	 * @return array{current:float,minimum:float}|null
 	 */
-	public function getMinimumPriceViolationForRow($row, $soc = null)
+	public function getMinimumPriceViolationForRow($row, $soc = null, $priceContext = array())
 	{
-		$productId = $this->getRowProductId($row);
-		if ($productId <= 0) {
+		$this->error = '';
+		// A cost-only enrichment does not change the sale price.
+		if ((!isset($row->price) || !dol_strlen($row->price))
+			&& (!isset($row->tx_discount) || !dol_strlen($row->tx_discount))) {
 			return null;
 		}
-
-		$product = $this->fetchProductForMinimumCheck($productId);
-		if (!is_object($product)) {
-			return null;
-		}
-
-		$minimum = (isset($product->price_min) && dol_strlen($product->price_min)) ? (float) price2num($product->price_min) : 0.0;
-		if ($minimum <= 0) {
-			return null;
-		}
-
-		$current = null;
-		if (isset($row->price) && dol_strlen($row->price)) {
-			$current = (float) price2num($row->price);
-		} elseif (isset($row->tx_discount) && dol_strlen($row->tx_discount)) {
-			$basePrice = $this->getMinimumCheckBasePrice($product, $soc);
-			if ($basePrice === null) {
+		try {
+			if (getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES') && version_compare(DOL_VERSION, '21.0.0', '<')) {
+				throw new RuntimeException('Combined customer pricing requires Dolibarr 21');
+			}
+			$product = $this->fetchProductForMinimumCheck($this->getRowProductId($row));
+			if (!is_object($product)) {
+				throw new RuntimeException('Product unavailable');
+			}
+			// A shared rule cannot be rejected for a customer that is not yet known.
+			if (!is_object($soc) && $this->hasContextualSalePrices()) {
 				return null;
 			}
-			$current = (float) $basePrice * (1 - ((float) price2num($row->tx_discount) / 100));
-		}
-
-		if ($current === null) {
+			$prices = $this->resolveMinimumPriceContext($product, $soc, $priceContext);
+			return $this->compareMinimumPrice($row, $prices, $priceContext);
+		} catch (Throwable $e) {
+			$this->error = 'PriceListMinimumPriceUnavailable';
+			dol_syslog(__METHOD__.': sale price context unavailable', LOG_WARNING);
 			return null;
 		}
+	}
 
-		if ((float) price2num($current) < (float) price2num($minimum)) {
-			return array(
-				'current' => (float) price2num($current),
-				'minimum' => (float) price2num($minimum),
-			);
+	/**
+	 * Whether a generic rule needs a customer or a selected quantity price.
+	 * @return bool
+	 */
+	private function hasContextualSalePrices()
+	{
+		return getDolGlobalInt('PRODUIT_MULTIPRICES') > 0
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES') > 0
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES') > 0
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY') > 0
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY_MULTIPRICES') > 0;
+	}
+
+	/**
+	 * Resolve native prices and validate the selected native quantity row.
+	 * @param Product $product Loaded, accessible product
+	 * @param object|null $soc Buyer (null in administration)
+	 * @param array{unit_price?:float|string|null,base_type?:string,tva_tx?:float|string,remise_percent?:float|string,pqp?:int} $context Line context
+	 * @return array{pu_ht:float,price_min:float}
+	 * @throws RuntimeException When the context cannot be checked
+	 */
+	private function resolveMinimumPriceContext($product, $soc, $context)
+	{
+		global $mysoc, $user, $hookmanager;
+		if (is_object($soc) && (int) $soc->id > 0
+			&& (!$user->hasRight('societe', 'lire')
+				|| !in_array((int) $soc->entity, array_map('intval', explode(',', getEntity('societe'))), true)
+				|| !checkUserAccessToObject($user, array('societe'), $soc, 'societe'))) {
+			throw new RuntimeException('Buyer unavailable');
 		}
+		$level = is_object($soc) && isset($soc->price_level) ? (int) $soc->price_level : 0;
+		$quantityLevels = getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY_MULTIPRICES') > 0;
+		$levels = $quantityLevels || getDolGlobalInt('PRODUIT_MULTIPRICES') > 0
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES') > 0;
+		$pqp = isset($context['pqp']) ? (int) $context['pqp'] : 0;
+		if ($pqp > 0) {
+			if (!getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY') && !$quantityLevels) {
+				throw new RuntimeException('Quantity pricing disabled');
+			}
+			$quantityLevel = $quantityLevels ? $level : 0;
+			$found = false;
+			foreach ($product->prices_by_qty_list[$quantityLevel] ?? array() as $quantityRow) {
+				if (isset($quantityRow['rowid']) && (int) $quantityRow['rowid'] === $pqp) {
+					$found = true;
+					break;
+				}
+			}
+			if (!$found) {
+				throw new RuntimeException('Invalid quantity price');
+			}
+		}
+		if (is_object($soc)) {
+			if (!is_object($mysoc)) {
+				throw new RuntimeException('Seller unavailable');
+			}
+			$customerPriceFound = false;
+			if (getDolGlobalInt('PRODUIT_CUSTOMER_PRICES') || getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES')) {
+				require_once DOL_DOCUMENT_ROOT.'/product/class/productcustomerprice.class.php';
+				$customerPrices = new ProductCustomerPrice($this->db);
+				// getSellPrice() does not propagate a negative fetchAll() result.
+				// Check the native read separately so an SQL error is never a fallback.
+				$result = $customerPrices->fetchAll('', '', 0, 0, array('t.fk_product' => (string) $product->id, 't.fk_soc' => (string) $soc->id));
+				if ($result < 0) {
+					throw new RuntimeException('Customer price read failed');
+				}
+				$day = (int) floor(dol_now() / 86400) * 86400;
+				foreach ($customerPrices->lines as $customerPrice) {
+					if (version_compare(DOL_VERSION, '22.0.0', '<')
+						|| ($customerPrice->date_begin <= $day && (!$customerPrice->date_end || $day <= $customerPrice->date_end))) {
+						$customerPriceFound = true;
+						break;
+					}
+				}
+			}
+			if ($levels && $level > 0 && !$customerPriceFound
+				&& (!isset($product->multiprices_min[$level]) || !isset($product->multiprices[$level]))) {
+				throw new RuntimeException('Price level unavailable');
+			}
+			$prices = $product->getSellPrice($mysoc, $soc, $pqp);
+			if ($this->db->error() !== '') {
+				throw new RuntimeException('Native price read failed');
+			}
+		} else {
+			$prices = array('pu_ht' => $product->price, 'price_min' => $product->price_min);
+		}
+		if (!is_array($prices)) {
+			throw new RuntimeException('Invalid native price result');
+		}
+		// The native commercial cards select the level minimum in this experimental mode.
+		// getSellPrice() in v20-v24 does not select that minimum itself.
+		$nativeHookReplacement = is_object($hookmanager) && isset($hookmanager->resArray['price_min'])
+			&& isset($hookmanager->resArray['pu_ht']) && $prices === $hookmanager->resArray;
+		if ($quantityLevels && $level > 0 && !$nativeHookReplacement) {
+			$prices['price_min'] = $product->multiprices_min[$level] ?? null;
+			if ($pqp === 0) {
+				$prices['pu_ht'] = $product->multiprices[$level] ?? null;
+			}
+		} elseif ($levels && $level > 0 && !isset($product->multiprices_min[$level])
+			&& !getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES')) {
+			throw new RuntimeException('Price level unavailable');
+		}
+		// Native quantity pricing changes only the selected base (HT or TTC).
+		if ($pqp > 0 && !$nativeHookReplacement && isset($quantityRow) && $quantityRow['price_base_type'] === 'TTC') {
+			$prices['pu_ht'] = $this->lineUnitPriceHT(array(
+				'unit_price' => $quantityRow['unitprice'], 'base_type' => 'TTC',
+				'tva_tx' => $prices['tva_tx'] ?? $product->tva_tx,
+			));
+		}
+		foreach (array('pu_ht', 'price_min') as $field) {
+			if (!array_key_exists($field, $prices) || $prices[$field] === null || $prices[$field] === ''
+				|| !is_numeric(price2num($prices[$field])) || !is_finite((float) price2num($prices[$field]))
+				|| ($field === 'price_min' && (float) price2num($prices[$field]) < 0)) {
+				throw new RuntimeException('Native price field unavailable');
+			}
+		}
+		return array('pu_ht' => (float) price2num($prices['pu_ht'], 'MU'), 'price_min' => (float) price2num($prices['price_min'], 'MU'));
+	}
 
-		return null;
+	/**
+	 * Convert a line unit price with the native commercial calculation.
+	 * @param array{unit_price:float|string|null,base_type?:string,tva_tx?:float|string} $context Line context
+	 * @return float
+	 */
+	private function lineUnitPriceHT($context)
+	{
+		if ($context['unit_price'] === null || $context['unit_price'] === '' || !is_numeric(price2num($context['unit_price'])) || !is_finite((float) price2num($context['unit_price']))) {
+			throw new RuntimeException('Invalid line price');
+		}
+		$base = $context['base_type'] ?? 'HT';
+		if ($base === 'HT') {
+			return (float) price2num($context['unit_price'], 'MU');
+		}
+		if ($base !== 'TTC' || !isset($context['tva_tx'])) {
+			throw new RuntimeException('Invalid line price base');
+		}
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/price.lib.php';
+		$vat = preg_replace('/\s*\(.*\)/', '', (string) $context['tva_tx']);
+		if (!is_numeric(price2num($vat))) {
+			throw new RuntimeException('Invalid VAT rate');
+		}
+		$amounts = calcul_price_total(1, $context['unit_price'], 0, (float) price2num($vat), 0, 0, 0, 'TTC', 0, 0);
+		return (float) price2num($amounts[3], 'MU');
+	}
+
+	/**
+	 * Compare the actual final HT unit price, including the retained discount.
+	 * @param stdClass $row Rule
+	 * @param array{pu_ht:float,price_min:float} $prices Native context
+	 * @param array{unit_price?:float|string|null,base_type?:string,tva_tx?:float|string,remise_percent?:float|string} $context Line context
+	 * @return array{current:float,minimum:float}|null
+	 */
+	private function compareMinimumPrice($row, $prices, $context)
+	{
+		$fixed = isset($row->price) && dol_strlen($row->price);
+		$unit = $fixed ? $this->lineUnitPriceHT(array('unit_price' => $row->price))
+			: (array_key_exists('unit_price', $context) ? $this->lineUnitPriceHT($context) : $prices['pu_ht']);
+		$discount = $fixed ? ($context['remise_percent'] ?? 0) : $row->tx_discount;
+		if ($discount === '') {
+			$discount = 0;
+		}
+		if (!is_numeric(price2num($discount)) || !is_finite((float) price2num($discount))) {
+			throw new RuntimeException('Invalid discount');
+		}
+		$current = (float) price2num($unit * (1 - (float) price2num($discount) / 100), 'MU');
+		return $current < $prices['price_min']
+			? array('current' => $current, 'minimum' => $prices['price_min']) : null;
+	}
+
+	/**
+	 * Describe generic administration checks without inventing a customer.
+	 * @param stdClass $row Rule
+	 * @return list<array{current?:float,minimum?:float,label:string,reason?:string}>
+	 */
+	public function getMinimumPriceWarningsForRow($row)
+	{
+		$this->error = '';
+		$warnings = array();
+		$product = $this->fetchProductForMinimumCheck($this->getRowProductId($row));
+		if (!is_object($product)) {
+			return array(array('label' => '', 'reason' => 'PriceListMinimumPriceUnavailable'));
+		}
+		if ((!isset($row->price) || !dol_strlen($row->price)) && (!isset($row->tx_discount) || !dol_strlen($row->tx_discount))) {
+			return array();
+		}
+		$levels = getDolGlobalInt('PRODUIT_MULTIPRICES') || getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES')
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY_MULTIPRICES');
+		if ($levels) {
+			for ($level = 1; $level <= getDolGlobalInt('PRODUIT_MULTIPRICES_LIMIT', 5); $level++) {
+				$label = getDolGlobalString('PRODUIT_MULTIPRICES_LABEL'.$level, (string) $level);
+				if (!isset($product->multiprices_min[$level], $product->multiprices[$level])
+					|| $product->multiprices_min[$level] === '' || $product->multiprices[$level] === ''
+					|| !is_numeric(price2num($product->multiprices_min[$level])) || !is_numeric(price2num($product->multiprices[$level]))
+					|| !is_finite((float) price2num($product->multiprices_min[$level])) || !is_finite((float) price2num($product->multiprices[$level]))
+					|| (float) price2num($product->multiprices_min[$level]) < 0) {
+					$warnings[] = array('label' => $label, 'reason' => 'PriceListMinimumPriceUnavailable');
+					continue;
+				}
+				try {
+					$violation = $this->compareMinimumPrice($row, array(
+						'pu_ht' => (float) price2num($product->multiprices[$level], 'MU'),
+						'price_min' => (float) price2num($product->multiprices_min[$level], 'MU'),
+					), array());
+				} catch (RuntimeException $e) {
+					$warnings[] = array('label' => $label, 'reason' => 'PriceListMinimumPriceUnavailable');
+					continue;
+				}
+				if (is_array($violation)) {
+					$violation['label'] = $label;
+					$warnings[] = $violation;
+				}
+			}
+		} elseif (!getDolGlobalInt('PRODUIT_CUSTOMER_PRICES')) {
+			$violation = $this->getMinimumPriceViolationForRow($row);
+			if (is_array($violation)) {
+				$violation['label'] = '';
+				$warnings[] = $violation;
+			} elseif ($this->error) {
+				$warnings[] = array('label' => '', 'reason' => $this->error);
+			}
+		}
+		if (getDolGlobalInt('PRODUIT_CUSTOMER_PRICES') || getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_AND_MULTIPRICES')
+			|| getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY') || getDolGlobalInt('PRODUIT_CUSTOMER_PRICES_BY_QTY_MULTIPRICES')) {
+			$warnings[] = array('label' => '', 'reason' => 'PriceListMinimumPriceContextRequired');
+		}
+		return $warnings;
 	}
 
 	/**
@@ -934,35 +1162,19 @@ class PriceList extends CommonObject
 	 */
 	private function fetchProductForMinimumCheck($productId)
 	{
+		global $user;
 		$product = new Product($this->db);
 		if ($productId <= 0 || $product->fetch($productId) <= 0) {
 			return null;
 		}
 
+		$permission = (int) $product->type === 1 ? 'service' : 'product';
+		$allowed = getDolGlobalInt('MAIN_USE_ADVANCED_PERMS') ? $user->hasRight($permission, $permission.'_advance', 'read_prices') : $user->hasRight($permission, 'read');
+		if (!$allowed || !in_array((int) $product->entity, array_map('intval', explode(',', getEntity('product'))), true)
+			|| !checkUserAccessToObject($user, array($permission), $product, 'product&product')) {
+			return null;
+		}
 		return $product;
-	}
-
-	/**
-	 * Return the base sale price used to test a discount against the minimum price.
-	 *
-	 * @param Product     $product Product object
-	 * @param object|null $soc     Thirdparty context
-	 * @return float|null
-	 */
-	private function getMinimumCheckBasePrice($product, $soc = null)
-	{
-		if (is_object($soc) && method_exists($product, 'getSellPrice')) {
-			try {
-				$product->getSellPrice($soc);
-			} catch (Throwable $e) {
-				dol_syslog(__METHOD__.' '.$e->getMessage(), LOG_DEBUG);
-			}
-		}
-		if (isset($product->price) && dol_strlen($product->price)) {
-			return (float) price2num($product->price);
-		}
-
-		return null;
 	}
 
 	/**
@@ -970,11 +1182,15 @@ class PriceList extends CommonObject
 	 *
 	 * @param stdClass    $row Price row
 	 * @param object|null $soc Thirdparty context
+	 * @param array{unit_price?:float|string|null,base_type?:string,tva_tx?:float|string,remise_percent?:float|string,pqp?:int} $priceContext Actual line price context
 	 * @return int|stdClass
 	 */
-	private function rejectPriceBelowMinimum($row, $soc = null)
+	private function rejectPriceBelowMinimum($row, $soc = null, $priceContext = array())
 	{
-		$violation = $this->getMinimumPriceViolationForRow($row, $soc);
+		$violation = $this->getMinimumPriceViolationForRow($row, $soc, $priceContext);
+		if ($this->error) {
+			return -1;
+		}
 		if (is_array($violation)) {
 			$this->error = 'PriceListBelowMinimumPriceNotApplied';
 			return -1;

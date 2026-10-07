@@ -89,6 +89,26 @@ class PriceListCompatibility
 		$dynamicPrices = self::getDynamicPricesAvailability();
 
 		return array(
+			'native_customer_price_dates' => array(
+				'label' => 'PriceListNativeCustomerPriceDates',
+				'description' => 'PriceListNativeCustomerPriceDatesDescription',
+				'min_dolibarr' => '22.0.0',
+				'core_available_from' => '22.0.0',
+				'module_available_from' => '22.0.0',
+				'min_php' => '8.0.0',
+				'available' => self::isDolibarrVersionAtLeast('22.0.0'),
+				'reason' => self::isDolibarrVersionAtLeast('22.0.0') ? '' : 'RequiresDolibarr22Php80',
+			),
+			'native_customer_and_levels' => array(
+				'label' => 'PriceListNativeCustomerAndLevels',
+				'description' => 'PriceListNativeCustomerAndLevelsDescription',
+				'min_dolibarr' => '21.0.0',
+				'core_available_from' => '21.0.0',
+				'module_available_from' => '21.0.0',
+				'min_php' => '8.0.0',
+				'available' => self::isDolibarrVersionAtLeast('21.0.0'),
+				'reason' => self::isDolibarrVersionAtLeast('21.0.0') ? '' : 'RequiresDolibarr21Php80',
+			),
 			'dynamicprices_cost' => array(
 				'label' => 'PriceListDynamicCost',
 				'description' => 'PriceListDynamicCostDescription',

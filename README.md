@@ -1,4 +1,4 @@
-# PriceList 2.3.0
+# PriceList 2.3.1
 
 Module Dolibarr permettant de gérer des tarifs dégressifs par quantité.
 
@@ -8,7 +8,7 @@ Les tarifs peuvent être ciblés par tiers, catégorie client, ou tags/catégori
 
 Lors de l'application sur une ligne, la priorité par défaut est : tags/catégories de l'objet courant, tiers, catégorie client, puis tarif générique du produit. Le réglage `PRICELIST_DOCUMENT_CATEGORY_PRIORITY` permet d'inverser la priorité entre le groupe objet et le groupe tiers/client.
 
-Les tarifs dégressifs ne peuvent pas descendre sous le prix de vente minimum natif du produit. Les lignes existantes incohérentes sont signalées dans l'onglet et ne sont pas appliquées par les hooks.
+Les tarifs dégressifs sont contrôlés contre le prix minimum natif applicable au client et au mode de prix actif. Les niveaux incompatibles sont signalés dans l'onglet ; un tarif générique reste enregistrable, puis les hooks refusent son application dans les contextes incompatibles.
 
 Chaque ligne propose un Select2 **Source du prix de revient** :
 
@@ -37,6 +37,16 @@ Les tags/catégories de devis utilisent le support natif Dolibarr disponible à 
 **Tarifs dégressifs** est un onglet natif unique, placé après les onglets transverses des produits et services. Il utilise les droits de lecture du type concerné, ou son droit avancé de lecture des prix lorsque les permissions avancées sont activées. La modification et la suppression exigent le droit de création/modification du produit ou service. Aucun rôle administrateur ne remplace ces permissions.
 
 **Réglages → À propos**, après **Compatibilité**, affiche les métadonnées du descripteur, les fonctionnalités et les liens utiles. `setup.php` reste la seule entrée de configuration depuis la liste des modules.
+
+## Mise à jour vers 2.3.1
+
+Le contrôle du minimum suit le mode natif activé dans Produits/Services : prix unique, niveaux clients, prix par client, client + niveaux, quantité ou quantité + niveaux. Un minimum nul reste valide. Les dates des tarifs clients sont respectées à partir de v22 ; le mode client + niveaux nécessite v21. Les modes natifs par quantité restent expérimentaux lorsqu'ils sont présentés ainsi par Dolibarr.
+
+Un tarif générique ou par catégorie peut être enregistré même s'il est incompatible avec certains niveaux : l'écran indique les niveaux concernés et le contrôle définitif utilise le client de la ligne. Les prix clients et les paliers ne sont pas inventés dans un écran sans ce contexte. Un palier natif sélectionné doit appartenir au produit et au niveau du client.
+
+Une remise Pricelist conserve le prix unitaire saisi ou déjà enregistré. Le contrôle compare le prix final après remise au minimum applicable, y compris lorsque le tarif fixe conserve une remise existante. Si le minimum ne peut pas être vérifié, l'enrichissement Pricelist est omis avec un message ; le parcours natif conserve ses propres contrôles.
+
+Aucune migration SQL ni réinitialisation des réglages n'est nécessaire pour ce correctif. L'onglet À propos lit automatiquement la version 2.3.1 depuis le descripteur. Voir [la validation 2.3.1](docs/VALIDATION_2.3.1.md) pour les scénarios exécutés et la recette restante. Les instructions de migration 2.3.0 restent applicables aux installations plus anciennes.
 
 ## Mise à jour vers 2.3.0
 
@@ -74,4 +84,4 @@ php test/run.php /chemin/vers/dolibarr 20.0.0 missing
 php test/run.php /chemin/vers/dolibarr 20.0.0 old
 ```
 
-Ces tests utilisent des fonctions natives extraites en mémoire du checkout Dolibarr, avec une base, des objets et un fournisseur simulés. Ils ne remplacent pas une recette sur instance. Voir [la validation 2.3.0](docs/VALIDATION_2.3.0.md) pour les preuves et les essais restant à exécuter.
+Ces tests utilisent des fonctions et méthodes natives extraites du checkout Dolibarr, en mémoire et dans des fichiers d'inclusion temporaires sous `.cache/pricing-*`, avec une base, des objets et un fournisseur simulés. Ils ne remplacent pas une recette sur instance. Voir [la validation 2.3.1](docs/VALIDATION_2.3.1.md) pour les preuves et les essais restant à exécuter.

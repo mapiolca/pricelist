@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.1 — préparée, non publiée — 2026-10-07
+
+- Correction du contrôle du prix minimum selon le mode natif Produits/Services : niveaux clients, tarifs clients, modes combinés et paliers sélectionnés ; absence de repli sur l'ancien minimum général lorsque le niveau est disponible.
+- Contrôle du prix réellement appliqué après remise à l'ajout, l'édition et l'actualisation des documents commerciaux ; conservation des prix manuels lors d'une remise seule et omission diagnostiquée lorsque le contrôle est impossible.
+- Avertissements précisant les niveaux incompatibles sans bloquer l'enregistrement des tarifs génériques ; vérification définitive avec le client réel.
+- Compatibilité native explicitée : client + niveaux à partir de v21, dates de validité des tarifs clients à partir de v22, minimum nul conservé et paliers étrangers refusés ; aucune migration SQL ni réinitialisation nécessaire.
+- Ajout de scénarios reproductibles utilisant les méthodes natives et d'une matrice CI Dolibarr v20 à v25 alpha ; les simulations sont distinguées des recettes réelles.
+
 ## 2.3.0 — préparée, non publiée
 
 - Ajout de l’onglet de réglages **À propos**, alimenté par le descripteur, après **Compatibilité**.
