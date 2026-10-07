@@ -219,7 +219,11 @@ if ($providerMode !== '') {
 }
 $tests = 0;
 function check($condition, $message) { global $tests; $tests++; if (!$condition) { throw new RuntimeException('FAIL: '.$message); } }
-function invoke($object, $method, ...$args) { $r = new ReflectionMethod($object, $method); return $r->invoke($object, ...$args); }
+function invoke($object, $method, ...$args) {
+	$r = new ReflectionMethod($object, $method);
+	if (PHP_VERSION_ID < 80100) { $r->setAccessible(true); }
+	return $r->invoke($object, ...$args);
+}
 $db = new TestDB();
 Product::$data[10] = array('entity' => 1, 'type' => 0, 'cost_price' => 9.87654);
 $pl = new PriceList($db);
