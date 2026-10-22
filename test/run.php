@@ -42,6 +42,7 @@ foreach (array('dol_eval', 'verifCond', 'price2num', 'complete_head_from_modules
 }
 if (strpos($native, 'function dolBuildUrl(') !== false) { eval(extractFunction($native, 'dolBuildUrl')); }
 if (strpos($native, 'function dol_eval_standard(') !== false) { eval(extractFunction($native, 'dol_eval_standard')); }
+if (strpos($native, 'function dolEvalSimpleCondition(') !== false) { eval(extractFunction($native, 'dolEvalSimpleCondition')); }
 if (preg_match('/^\d+\.\d+\.\d+$/', $ref)) {
 	define('DOL_VERSION', $ref);
 } else {
@@ -86,8 +87,22 @@ class Product {
 		return 1;
 	}
 }
-class Societe { public $id = 0, $entity = 1; public function __construct($db) {} public function fetch($id, $ref = '') { return 0; } }
-class Categorie { public function __construct($db) {} }
+class Societe {
+	public $id = 0, $entity = 1;
+	public static $data = array();
+	public function __construct($db) {}
+	public function fetch($id, $ref = '') {
+		if (!isset(self::$data[$id])) { return 0; }
+		$this->id = $id;
+		$this->entity = self::$data[$id];
+		return 1;
+	}
+}
+class Categorie {
+	public static $customerCategories = array();
+	public function __construct($db) {}
+	public function containing($id, $type) { return self::$customerCategories; }
+}
 class Translate {
 	public function load($s) {} public function loadLangs($s) {}
 	public function trans($s, ...$args) { return $s.($args ? ':'.implode('|', $args) : ''); }
@@ -186,7 +201,11 @@ if ($providerMode !== '') {
 }
 $tests = 0;
 function check($condition, $message) { global $tests; $tests++; if (!$condition) { throw new RuntimeException('FAIL: '.$message); } }
-function invoke($object, $method, ...$args) { $r = new ReflectionMethod($object, $method); return $r->invoke($object, ...$args); }
+function invoke($object, $method, ...$args) {
+	$r = new ReflectionMethod($object, $method);
+	if (PHP_VERSION_ID < 80100) { $r->setAccessible(true); }
+	return $r->invoke($object, ...$args);
+}
 $db = new TestDB();
 Product::$data[10] = array('entity' => 1, 'type' => 0, 'cost_price' => 9.87654);
 $pl = new PriceList($db);
@@ -203,10 +222,13 @@ $row->cost_price_source = 'dynamicprices';
 $settings['DYNAMICPRICES_COST_USE_FOR_SALES'] = 0;
 check($pl->getEffectiveCostPriceForRow($row) === 23.4568, 'consultation entity, independent of sales automation');
 $source = (object) array('element' => 'propal', 'entity' => 2, 'id' => 0);
+check($pl->get_price(10, new Societe($db), 3, $source) === 0, 'unshared owner tariff must not leak through a shared product');
+$db->bestEntity = 2;
 $priceRow = $pl->get_price(10, new Societe($db), 3, $source);
-check(is_object($priceRow) && $priceRow->cost_context_entity === 2, 'fallback rule owner must not replace commercial entity');
+check(is_object($priceRow) && $priceRow->cost_context_entity === 2, 'local tariff retains commercial entity');
 check($pl->getEffectiveCostPriceForRow($priceRow) === 23.4568, 'external one-argument resolver retains document entity');
 $source->entity = 1;
+$db->bestEntity = 1;
 $priceRow = $pl->get_price(10, new Societe($db), 3, $source);
 check($pl->getEffectiveCostPriceForRow($priceRow) === 12.3457, 'shared document uses its entity and configuration');
 $row->cost_context_entity = 99;
@@ -243,6 +265,7 @@ check(invoke($pl, 'hasChangedComparedTo', $copy), 'source-only edit detected');
 $clone = clone $pl; $clone->id = null;
 check($clone->create($user) === 50 && $clone->cost_price_source === 'dynamicprices', 'cloning retains source');
 $hooks = new ActionsPriceList($db);
+$db->bestEntity = 2;
 $row->price = 75; $row->tx_discount = null;
 DynamicPricesCostService::$values[2] = null;
 $_POST = array('buying_price' => 7, 'pa_ht' => 7);
@@ -289,7 +312,7 @@ foreach (array(0, 1) as $advanced) {
 	}
 }
 $settings['MAIN_USE_ADVANCED_PERMS'] = 0; $user->allowed = $allowed; $user->admin = 0;
-check(count($descriptor->config_page_url) === 1 && $descriptor->version === '2.3.0', 'single settings entry and version');
+check(count($descriptor->config_page_url) === 1 && $descriptor->version === '2.3.1', 'single settings entry and version');
 check(array_column(pricelistAdminPrepareHead(), 2) === array('settings', 'compatibility', 'about'), 'admin tab ordering');
 // Replaying a partially completed migration must preserve canonical rows and all old amounts.
 foreach (array('pricelist', 'pricelist_log') as $table) {
@@ -366,4 +389,6 @@ check(isset($descriptor->export_fields_array[1]['pl.cost_price_source']) && !iss
 check(strpos($descriptor->export_sql_end[1], 'pl.entity = 2') !== false, 'export uses consultation entity');
 check(strpos($descriptor->export_sql_end[1], 'p.entity IN (1,2)') !== false, 'export restricts shared product scope');
 check(isset($descriptor->import_fields_array[1]['p.cost_price_source'], $descriptor->import_fields_array[1]['p.use_product_cost_price']), 'native import preserves legacy mapping and accepts canonical source');
+require __DIR__.'/entity_isolation.php';
+
 echo 'OK: '.$tests.' assertions; native functions '.$ref.' (Dolibarr '.DOL_VERSION.'); PHP '.PHP_VERSION."; simulated DB/provider, no live instance.\n";

@@ -1,0 +1,40 @@
+name: PriceList entity isolation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {php: '8.0', ref: '20.0.0', sha: '697bf01970740a3339cd99cf055b4428fc5e051c'}
+          - {php: '8.4', ref: '20.0.0', sha: '697bf01970740a3339cd99cf055b4428fc5e051c'}
+          - {php: '8.4', ref: '21.0.0', sha: 'fd970b582a4d8c5779a2958a4e9f4fce225cf085'}
+          - {php: '8.4', ref: '22.0.0', sha: '49b9a6d19f3deb6d410c0e9b3310e95be4ea7710'}
+          - {php: '8.4', ref: '23.0.2', sha: 'ccef1102e6850b7545be7bad91cf0cc4c74ac6ea'}
+          - {php: '8.4', ref: '24.0.1', sha: 'b7958385f00a92219f76a4dfea67dae93df97a25'}
+          - {php: '8.4', ref: 'd37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b', sha: 'd37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b'}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - uses: actions/checkout@v4
+        with:
+          repository: Dolibarr/dolibarr
+          ref: ${{ matrix.ref }}
+          path: .cache/dolibarr
+      - name: Verify immutable native source revision
+        run: test "$(git -C .cache/dolibarr rev-parse HEAD)" = '${{ matrix.sha }}'
+      - name: Entity isolation simulations
+        run: php test/run.php .cache/dolibarr '${{ matrix.ref }}'

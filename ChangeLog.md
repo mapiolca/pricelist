@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1 — préparée, non publiée — 2026-10-22
+
+- Correction de l'isolation Multicompany : le partage d'un produit/service ne donne plus accès aux tarifs PriceList de son entité propriétaire. La recherche utilise exclusivement l'entité du document, ou l'entité courante sans document.
+- Les tarifs d'une autre entité ne peuvent plus modifier une ligne ni déclencher leur contrôle de minimum ; les tarifs locaux et les documents partagés accessibles conservent leurs règles de priorité et leur contexte de coût.
+- Aucune migration SQL ni réactivation nécessaire ; données et réglages conservés. Tests de non-régression et matrice CI ajoutés, avec distinction entre simulations et recette réelle.
+
 ## 2.3.0 — préparée, non publiée
 
 - Ajout de l’onglet de réglages **À propos**, alimenté par le descripteur, après **Compatibilité**.
