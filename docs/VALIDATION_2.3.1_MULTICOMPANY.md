@@ -11,16 +11,23 @@ propriétaire du produit à celle du document. Un produit partagé pouvait donc
 entraîner l'application d'un tarif étranger, ou son rejet pour minimum non
 respecté, même sans partage des tarifs PriceList.
 
-`get_price()` recherche désormais les tarifs uniquement dans l'entité du
-document, après le contrôle existant de son accès. Sans document, il utilise
-l'entité courante. Le helper de repli est supprimé. La priorité catégorie du
-document / tiers / catégorie client / générique reste inchangée.
+`get_price()` utilise désormais l'entité du document après le contrôle existant
+de son accès. Dans l'entité courante, ou sans document, il ajoute les entités
+retournées directement par `getEntity('productprice')`, après l'entité locale.
+Le partage des prix de vente de Multicompany pilote donc l'application des
+tarifs dégressifs, sans réglage concurrent ni repli implicite fondé sur le
+propriétaire du produit. La priorité catégorie du document / tiers / catégorie
+client / générique reste inchangée.
 
 Le même résolveur est utilisé pour ajout, édition et actualisation des devis,
 commandes, factures, factures récurrentes et contrats. Les écrans de gestion,
 l'import et l'export utilisent déjà l'entité courante pour les tarifs : leur
-contrat est conservé. Un document partagé accessible garde ses propres tarifs
-et son contexte de coût ; le partage du produit ne change aucun propriétaire.
+contrat est conservé : les tarifs partagés sont utilisés automatiquement mais
+leur saisie et leur modification restent dans leur entité propriétaire. Un
+document partagé accessible garde ses propres tarifs et son contexte de coût ;
+la liste native de l'entité de consultation ne décrit pas les partages sortants
+de son propriétaire et ne lui est pas transposée. Le partage du produit ne
+change aucun propriétaire.
 La session et `$conf->entity` ne sont jamais modifiés par la résolution.
 
 Seul le résolveur métier change en production, avec la version du descripteur
@@ -30,6 +37,13 @@ n'est pas nécessaire. À propos utilise déjà la version du descripteur.
 
 Cette branche est indépendante de la PR #8 sur les modes de prix, encore ouverte
 lors du préflight. Son contenu n'est pas intégré à ce correctif.
+
+Contrat lu dans `class/actions_multicompany.class.php` au commit
+`e29b39060b37b8d70d052337a736cc5e465b3a2e` du module Multicompany : élément
+`productprice`, méthode `ActionsMulticompany::getEntity()` retournant le périmètre
+préparé pour cet élément, ou l'entité courante à défaut. Le core utilise déjà
+`getEntity('productprice')` lors de la lecture des prix produits. Cette lecture
+de sources ne constitue pas un essai sur l'instance de l'utilisateur.
 
 ## Reproduction et résultats
 
@@ -46,12 +60,12 @@ transactions et règles de partage réelles ne sont pas exécutées.
 
 | Sources natives Dolibarr | Révision figée | Assertions réussies, PHP 8.4.22 |
 |---|---|---:|
-| 20.0.0 | `697bf01970740a3339cd99cf055b4428fc5e051c` | 157 |
-| 21.0.0 | `fd970b582a4d8c5779a2958a4e9f4fce225cf085` | 157 |
-| 22.0.0 | `49b9a6d19f3deb6d410c0e9b3310e95be4ea7710` | 165 |
-| 23.0.2 | `ccef1102e6850b7545be7bad91cf0cc4c74ac6ea` | 169 |
-| 24.0.1 | `b7958385f00a92219f76a4dfea67dae93df97a25` | 169 |
-| 25.0.0-alpha | `d37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b` | 169 |
+| 20.0.0 | `697bf01970740a3339cd99cf055b4428fc5e051c` | 181 |
+| 21.0.0 | `fd970b582a4d8c5779a2958a4e9f4fce225cf085` | 181 |
+| 22.0.0 | `49b9a6d19f3deb6d410c0e9b3310e95be4ea7710` | 191 |
+| 23.0.2 | `ccef1102e6850b7545be7bad91cf0cc4c74ac6ea` | 196 |
+| 24.0.1 | `b7958385f00a92219f76a4dfea67dae93df97a25` | 196 |
+| 25.0.0-alpha | `d37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b` | 196 |
 
 Les catégories de documents sont testées seulement lorsque leur capacité est
 disponible dans la version simulée. L'alpha v25 ne valide pas une future finale.
@@ -70,6 +84,9 @@ Scénarios couverts par `test/entity_isolation.php` et `test/run.php` :
 - Tarifs client, catégorie client et catégories de documents : isolement des
   tarifs étrangers et application des tarifs locaux, avec les deux priorités.
 - Droits produit, produit non partagé et entité du document inaccessible refusés.
+- Partage natif des prix activé/désactivé, sens du partage, priorité locale,
+  entité de prix distincte du propriétaire du produit, tarifs clients et
+  catégories partagés et application dans les cinq types de documents.
 - Conservation du contexte de coût, précision monétaire native, import/export,
   métadonnées et autres scénarios existants du banc.
 
@@ -104,7 +121,12 @@ Dolibarr, PHP et Multicompany, puis utiliser deux entités A et B :
    de A continue de s'appliquer dans A, y compris les règles client/catégorie.
 4. Si les documents sont partagés, consulter depuis B un document de A accessible
    et vérifier l'utilisation de ses tarifs de A ; refuser un document inaccessible.
-5. Tester utilisateur avec droits partiels et partage produit global puis par
+5. Activer le partage des prix de vente de A vers B dans Multicompany : vérifier
+   l'application des tarifs de A dans B en l'absence de tarif local, puis la
+   priorité du tarif local lorsqu'il existe. Désactiver le partage et vérifier
+   immédiatement le retour à l'isolation. Vérifier aussi le sens inverse et
+   les tarifs clients/catégories sans déplacer leur propriété.
+6. Tester utilisateur avec droits partiels et partage produit global puis par
    élément. Vérifier conservation de l'entité authentifiée, des données et des
    réglages, ainsi que l'affichage 2.3.1 dans À propos.
 

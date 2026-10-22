@@ -87,3 +87,50 @@ $user->allowed = array('product.read', 'societe.lire');
 $scopes['propal'] = '2';
 check($isolation->get_price(10, $buyer, 3, $sharedDocument) === -1, 'inaccessible document owner still forbidden');
 check($conf->entity === 2, 'rule lookup never switches authenticated entity');
+
+// Sale-price sharing is independent from product sharing and remains directional.
+$scopes['propal'] = '1,2'; $isolationDB->target = '';
+$buyer->id = 0; Categorie::$customerCategories = array();
+$document = (object) array('element' => 'propal', 'entity' => 2, 'id' => 0);
+$scopes['productprice'] = '2'; $isolationDB->bestEntity = 1;
+check($isolation->get_price(10, $buyer, 3, $document) === 0, 'product sharing alone never shares tariffs');
+$scopes['productprice'] = '1,2';
+$sharedRule = $isolation->get_price(10, $buyer, 3, $document);
+check(is_object($sharedRule) && $sharedRule->cost_context_entity === 2, 'native sale-price sharing enables foreign tariff without changing cost entity');
+check(is_object($isolation->get_price(10, $buyer, 3)), 'legacy caller uses native sale-price sharing');
+$isolationDB->queries = array(); $isolationDB->bestEntity = 2;
+check(is_object($isolation->get_price(10, $buyer, 3, $document)), 'local tariff still applies when sharing enabled');
+check(count(array_filter($isolationDB->queries, static function ($sql) {
+	return strpos($sql, 'SELECT rowid, fk_product') === 0 && strpos($sql, 't.entity = 1') !== false;
+})) === 0, 'local generic tariff takes precedence over shared generic tariff');
+$scopes['productprice'] = '2,3'; $isolationDB->bestEntity = 3;
+check(is_object($isolation->get_price(10, $buyer, 3, $document)), 'authorized price entity need not own the product');
+$isolationDB->bestEntity = 1;
+check($isolation->get_price(10, $buyer, 3, $document) === 0, 'price entity excluded from native sharing is never queried');
+$conf->entity = 1; $scopes['productprice'] = '1'; $isolationDB->bestEntity = 2;
+check($isolation->get_price(10, $buyer, 3) === 0, 'native sharing direction is respected');
+$conf->entity = 2; $scopes['productprice'] = '1,2';
+check($isolation->get_price(10, $buyer, 3, $sharedDocument) === 0, 'shared document cannot inherit consultation entity sale-price scope');
+$isolationDB->bestEntity = 1;
+check(is_object($isolation->get_price(10, $buyer, 3, $sharedDocument)), 'shared document owner tariff preserved with price sharing enabled');
+$scopes['productprice'] = '2';
+check($isolation->get_price(10, $buyer, 3, $document) === 0, 'disabling sale-price sharing immediately isolates tariffs');
+
+$scopes['productprice'] = '1,2'; Societe::$data[7] = 1; $buyer->id = 7;
+Categorie::$customerCategories = array((object) array('id' => 77));
+foreach ($targets as $target => $element) {
+	$isolationDB->target = $target;
+	$context = $element ? (object) array('element' => $element, 'entity' => 2, 'id' => 12) : null;
+	check(is_object($isolation->get_price(10, $buyer, 3, $context)), 'native sale-price sharing applies targeted tariff '.$target);
+}
+$isolationDB->target = ''; $buyer->id = 0;
+foreach (array('propal' => 'updatePropalLines', 'commande' => 'updateOrderLines', 'facture' => 'updateInvoiceLines',
+	'facturerec' => 'updateInvoiceLines', 'contrat' => 'updateContractLines') as $element => $refresh) {
+	$document = new CommercialDocument(); $document->element = $element; $document->lines = array(clone $line);
+	$_POST = array('price_ht' => '350');
+	invoke($isolationHooks, 'applyPriceToPostFromPriceList', 10, $buyer, 3, $document);
+	check((float) $_POST['price_ht'] === 80.0, 'shared sale tariff applied at add/edit '.$element);
+	invoke($isolationHooks, $refresh, $document, $buyer);
+	check(count($document->calls) === 1, 'shared sale tariff applied at refresh '.$element);
+}
+check($conf->entity === 2, 'sale-price sharing never switches authenticated entity');

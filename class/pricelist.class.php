@@ -469,8 +469,13 @@ class PriceList extends CommonObject
 			return -1;
 		}
 
-		// Sharing a product does not share its independent PriceList rules.
+		// PriceList follows native sale-price sharing, never product sharing alone.
 		$entities = array($costEntity);
+		if ($costEntity === (int) $conf->entity) {
+			$entities = $this->normalizeIdList(array_merge($entities, explode(',', getEntity('productprice'))));
+		}
+		// A shared document keeps its owner's context; the current sharing list
+		// cannot describe that other entity's outbound price-sharing settings.
 		$sourceCategory = $this->getSourceObjectCategoryDefinition($sourceObject);
 		$socid = $this->getObjectId($soc);
 		if ($socid > 0) {

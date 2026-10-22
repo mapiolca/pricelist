@@ -40,9 +40,9 @@ Les tags/catégories de devis utilisent le support natif Dolibarr disponible à 
 
 ## Mise à jour vers 2.3.1 — isolation des tarifs par entité
 
-Le partage d'un produit/service ne partage pas ses tarifs PriceList. À l'ajout, à l'édition et à l'actualisation des lignes, seuls les tarifs appartenant à l'entité du document sont recherchés. Sans document transmis, la recherche reste dans l'entité courante. Cette règle couvre les tarifs génériques, par client et par catégorie ; leur priorité reste inchangée.
+L'application des tarifs PriceList suit le partage natif des **prix de vente** de Multicompany (`getEntity('productprice')`). Partager seulement un produit/service ne partage pas ses tarifs dégressifs. Les tarifs de l'entité courante sont prioritaires ; à défaut, les tarifs des entités autorisées par le partage des prix de vente sont recherchés. Aucun réglage de partage supplémentaire n'est ajouté dans PriceList. Cette règle couvre les tarifs génériques, par client et par catégorie ; leur priorité reste inchangée.
 
-Un document partagé conserve les tarifs et le contexte de coût de son entité propriétaire, après les contrôles d'accès existants. Aucun repli vers les tarifs de l'entité propriétaire du produit n'est effectué : en l'absence de tarif dans l'entité du document, les valeurs natives de la ligne sont conservées.
+La saisie et la modification des tarifs restent dans leur entité propriétaire. Pour un document de l'entité courante, ou un appel sans document, l'application utilise le périmètre natif des prix de vente de cette entité. Un document partagé depuis une autre entité conserve ses propres tarifs et son contexte de coût : le partage des prix de l'entité de consultation n'est pas transposé à son propriétaire. En l'absence de tarif autorisé, les valeurs natives de la ligne sont conservées.
 
 Ce correctif ne nécessite aucune migration SQL, réactivation ni copie des tarifs entre entités. Les données existantes restent en place. Version préparée pour revue, sans publication de release. Voir [la validation Multicompany 2.3.1](docs/VALIDATION_2.3.1_MULTICOMPANY.md) pour les simulations et la recette réelle restante. Les instructions de migration 2.3.0 restent applicables aux installations plus anciennes.
 
