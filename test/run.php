@@ -106,8 +106,22 @@ class Product extends NativeSalePrice {
 		return 1;
 	}
 }
-class Societe { public $id = 0, $entity = 1, $price_level = 0, $country_id = 1; public function __construct($db) {} public static $data = array(); public function fetch($id, $ref = '') { if (!isset(self::$data[$id])) { return 0; } foreach (self::$data[$id] as $key => $value) { $this->$key = $value; } $this->id = $id; return 1; } }
-class Categorie { public function __construct($db) {} public function containing($id, $type, $mode = null) { return array(); } }
+class Societe {
+	public $id = 0, $entity = 1, $price_level = 0, $country_id = 1;
+	public static $data = array();
+	public function __construct($db) {}
+	public function fetch($id, $ref = '') {
+		if (!isset(self::$data[$id])) { return 0; }
+		$this->id = $id;
+		foreach (self::$data[$id] as $key => $value) { $this->$key = $value; }
+		return 1;
+	}
+}
+class Categorie {
+	public static $customerCategories = array();
+	public function __construct($db) {}
+	public function containing($id, $type, $mode = null) { return self::$customerCategories; }
+}
 class Translate {
 	public function load($s) {} public function loadLangs($s) {}
 	public function trans($s, ...$args) { return $s.($args ? ':'.implode('|', $args) : ''); }
@@ -240,10 +254,13 @@ $row->cost_price_source = 'dynamicprices';
 $settings['DYNAMICPRICES_COST_USE_FOR_SALES'] = 0;
 check($pl->getEffectiveCostPriceForRow($row) === 23.4568, 'consultation entity, independent of sales automation');
 $source = (object) array('element' => 'propal', 'entity' => 2, 'id' => 0);
+check($pl->get_price(10, new Societe($db), 3, $source) === 0, 'unshared owner tariff must not leak through a shared product');
+$db->bestEntity = 2;
 $priceRow = $pl->get_price(10, new Societe($db), 3, $source);
-check(is_object($priceRow) && $priceRow->cost_context_entity === 2, 'fallback rule owner must not replace commercial entity');
+check(is_object($priceRow) && $priceRow->cost_context_entity === 2, 'local tariff retains commercial entity');
 check($pl->getEffectiveCostPriceForRow($priceRow) === 23.4568, 'external one-argument resolver retains document entity');
 $source->entity = 1;
+$db->bestEntity = 1;
 $priceRow = $pl->get_price(10, new Societe($db), 3, $source);
 check($pl->getEffectiveCostPriceForRow($priceRow) === 12.3457, 'shared document uses its entity and configuration');
 $row->cost_context_entity = 99;
@@ -280,6 +297,7 @@ check(invoke($pl, 'hasChangedComparedTo', $copy), 'source-only edit detected');
 $clone = clone $pl; $clone->id = null;
 check($clone->create($user) === 50 && $clone->cost_price_source === 'dynamicprices', 'cloning retains source');
 $hooks = new ActionsPriceList($db);
+$db->bestEntity = 2;
 $row->price = 75; $row->tx_discount = null;
 DynamicPricesCostService::$values[2] = null;
 $_POST = array('buying_price' => 7, 'pa_ht' => 7);
@@ -403,6 +421,10 @@ check(isset($descriptor->export_fields_array[1]['pl.cost_price_source']) && !iss
 check(strpos($descriptor->export_sql_end[1], 'pl.entity = 2') !== false, 'export uses consultation entity');
 check(strpos($descriptor->export_sql_end[1], 'p.entity IN (1,2)') !== false, 'export restricts shared product scope');
 check(isset($descriptor->import_fields_array[1]['p.cost_price_source'], $descriptor->import_fields_array[1]['p.use_product_cost_price']), 'native import preserves legacy mapping and accepts canonical source');
+$baseCommercialLine = clone $line;
 require __DIR__.'/pricing_modes.php';
+$line = $baseCommercialLine;
+foreach ($modes as $mode) { $settings[$mode] = 0; }
+require __DIR__.'/entity_isolation.php';
 
 echo 'OK: '.$tests.' assertions; native functions '.$ref.' (Dolibarr '.DOL_VERSION.'); PHP '.PHP_VERSION."; simulated DB/provider, no live instance.\n";

@@ -1,7 +1,8 @@
 # PriceList 2.3.1 — validation du contrôle des minimums
 
 État : changements préparés pour revue, sans déploiement ni publication de release.
-Vérification locale du 7 octobre 2026, sous PHP 8.4.22.
+Vérification locale initiale du 7 octobre 2026, complétée le 22 octobre 2026
+après intégration du partage natif des prix de vente, sous PHP 8.4.22.
 
 ## Périmètre
 
@@ -27,12 +28,16 @@ simulés. Ces essais ne sont pas une recette sur instance Dolibarr complète.
 
 | Source Dolibarr | Révision exacte lue et utilisée | Assertions réussies (PHP 8.4.22) |
 |---|---|---:|
-| 20.0.0 | `697bf01970740a3339cd99cf055b4428fc5e051c` | 175 |
-| 21.0.0 | `fd970b582a4d8c5779a2958a4e9f4fce225cf085` | 178 |
-| 22.0.0 | `49b9a6d19f3deb6d410c0e9b3310e95be4ea7710` | 182 |
-| 23.0.2 | `ccef1102e6850b7545be7bad91cf0cc4c74ac6ea` | 182 |
-| 24.0.1 | `b7958385f00a92219f76a4dfea67dae93df97a25` | 182 |
-| 25.0.0-alpha | `d37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b` | 182 |
+| 20.0.0 | `697bf01970740a3339cd99cf055b4428fc5e051c` | 240 |
+| 21.0.0 | `fd970b582a4d8c5779a2958a4e9f4fce225cf085` | 243 |
+| 22.0.0 | `49b9a6d19f3deb6d410c0e9b3310e95be4ea7710` | 257 |
+| 23.0.2 | `ccef1102e6850b7545be7bad91cf0cc4c74ac6ea` | 262 |
+| 24.0.1 | `b7958385f00a92219f76a4dfea67dae93df97a25` | 262 |
+| 25.0.0-alpha | `d37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b` | 262 |
+
+Le lanceur exécute maintenant les scénarios de modes de prix et d'isolation/
+partage Multicompany dans la même exécution. Voir aussi
+[la validation du partage](VALIDATION_2.3.1_MULTICOMPANY.md).
 
 Commandes, depuis la racine du module, avec un dépôt Dolibarr voisin :
 
@@ -76,7 +81,7 @@ native seule ne couvre pas entièrement ce cas.
   native, accès refusés et périmètres d'entités simulés.
 - Précision unitaire native et non-régression des tests existants.
 
-Les 19 fichiers PHP passent le contrôle de syntaxe. `composer validate --strict`
+Les 20 fichiers PHP passent le contrôle de syntaxe. `composer validate --strict`
 réussit. PHPStan n'a pas été exécuté : aucun exécutable ni configuration PHPStan
 du module n'est disponible dans cet environnement. Aucun baseline ou ignore n'a
 été ajouté. Les résultats de CI doivent être lus sur le SHA de tête de la PR.

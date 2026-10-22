@@ -22,7 +22,7 @@ La source DynamicPrices nécessite l’activation de DynamicsPrices et de ses co
 
 PriceList lit le coût existant sans recalcul ni écriture dans DynamicsPrices. Il ne passe pas par le résolveur de priorités de DynamicsPrices, qui peut lui-même consulter PriceList. Le réglage `DYNAMICPRICES_COST_USE_FOR_SALES` n’est pas requis. Si le coût manque, est inaccessible ou correspond à un calcul en erreur, le coût de la ligne commerciale est conservé ; le prix de vente ou la remise du tarif reste appliqué et une alerte est affichée. À l’ajout, les valeurs de coût déjà proposées par le formulaire natif restent inchangées.
 
-L’entité du document détermine le coût commercial, même si le tarif et le produit appartiennent à une autre entité partagée. Dans les écrans tarifaires, l’entité de consultation est utilisée. `get_price()` transmet `cost_context_entity` et `cost_context_element` dans son résultat : les intégrations existantes peuvent continuer à appeler `getEffectiveCostPriceForRow($row)` avec un seul argument. Ces informations sont transitoires et ne sont jamais enregistrées dans le tarif.
+L’entité du document détermine le coût commercial, même si le produit appartient à une autre entité partagée. Dans les écrans tarifaires, l’entité de consultation est utilisée. `get_price()` transmet `cost_context_entity` et `cost_context_element` dans son résultat : les intégrations existantes peuvent continuer à appeler `getEffectiveCostPriceForRow($row)` avec un seul argument. Ces informations sont transitoires et ne sont jamais enregistrées dans le tarif.
 
 Si l’automatisation des ventes de DynamicsPrices est également active, ses propres choix explicites et priorités restent applicables après les hooks PriceList. PriceList ne modifie pas cette configuration. La lecture directe empêche une boucle de résolution ; la coexistence complète des deux modules doit être vérifiée sur l’instance cible.
 
@@ -47,6 +47,13 @@ Un tarif générique ou par catégorie peut être enregistré même s'il est inc
 Une remise Pricelist conserve le prix unitaire saisi ou déjà enregistré. Le contrôle compare le prix final après remise au minimum applicable, y compris lorsque le tarif fixe conserve une remise existante. Si le minimum ne peut pas être vérifié, l'enrichissement Pricelist est omis avec un message ; le parcours natif conserve ses propres contrôles.
 
 Aucune migration SQL ni réinitialisation des réglages n'est nécessaire pour ce correctif. L'onglet À propos lit automatiquement la version 2.3.1 depuis le descripteur. Voir [la validation 2.3.1](docs/VALIDATION_2.3.1.md) pour les scénarios exécutés et la recette restante. Les instructions de migration 2.3.0 restent applicables aux installations plus anciennes.
+### Partage des tarifs entre entités
+
+L'application des tarifs PriceList suit le partage natif des **prix de vente** de Multicompany (`getEntity('productprice')`). Partager seulement un produit/service ne partage pas ses tarifs dégressifs. Les tarifs de l'entité courante sont prioritaires ; à défaut, les tarifs des entités autorisées par le partage des prix de vente sont recherchés. Aucun réglage de partage supplémentaire n'est ajouté dans PriceList. Cette règle couvre les tarifs génériques, par client et par catégorie ; leur priorité reste inchangée.
+
+La saisie et la modification des tarifs restent dans leur entité propriétaire. Pour un document de l'entité courante, ou un appel sans document, l'application utilise le périmètre natif des prix de vente de cette entité. Un document partagé depuis une autre entité conserve ses propres tarifs et son contexte de coût : le partage des prix de l'entité de consultation n'est pas transposé à son propriétaire. En l'absence de tarif autorisé, les valeurs natives de la ligne sont conservées.
+
+Ce correctif ne nécessite aucune migration SQL, réactivation ni copie des tarifs entre entités. Les données existantes restent en place. Version préparée pour revue, sans publication de release. Voir [la validation Multicompany 2.3.1](docs/VALIDATION_2.3.1_MULTICOMPANY.md) pour les simulations et la recette réelle restante. Les instructions de migration 2.3.0 restent applicables aux installations plus anciennes.
 
 ## Mise à jour vers 2.3.0
 

@@ -470,7 +470,13 @@ class PriceList extends CommonObject
 			return -1;
 		}
 
-		$entities = $this->getPriceEntityCandidates($sourceObject, $product);
+		// PriceList follows native sale-price sharing, never product sharing alone.
+		$entities = array($costEntity);
+		if ($costEntity === (int) $conf->entity) {
+			$entities = $this->normalizeIdList(array_merge($entities, explode(',', getEntity('productprice'))));
+		}
+		// A shared document keeps its owner's context; the current sharing list
+		// cannot describe that other entity's outbound price-sharing settings.
 		$sourceCategory = $this->getSourceObjectCategoryDefinition($sourceObject);
 		$socid = $this->getObjectId($soc);
 		if ($socid > 0) {
@@ -1254,27 +1260,6 @@ class PriceList extends CommonObject
 		}
 
 		return 1;
-	}
-
-	/**
-	 * Return entity candidates used to resolve a price rule.
-	 *
-	 * The source object entity stays first. The product entity is used as a
-	 * fallback for shared products whose price list rows belong to the owner
-	 * entity.
-	 *
-	 * @param ?object $sourceObject Source object
-	 * @param Product $product      Product object
-	 * @return array<int,int>
-	 */
-	private function getPriceEntityCandidates($sourceObject, $product)
-	{
-		$entities = array($this->resolveEntity($sourceObject));
-		if (!empty($product->entity)) {
-			$entities[] = (int) $product->entity;
-		}
-
-		return $this->normalizeIdList($entities);
 	}
 
 	/**
