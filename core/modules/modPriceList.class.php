@@ -68,7 +68,7 @@ class modPriceList extends DolibarrModules
 		// EN: Provide a bilingual module description. FR: Fournir une description bilingue du module.
 		$this->description = "Manage selling and cost price lists / Gestion des tarifs de vente et de revient";
 		// Possible values for version are: 'development', 'experimental', 'dolibarr' or version
-			$this->version = '2.3.0';
+			$this->version = '2.3.1';
 		$this->url_last_version = 'https://dv.sm-2i.fr/pricelist.txt';
 		// EN: Reference the new editor information. FR: Référencer les nouvelles informations de l'éditeur.
 		$this->editor_name= 'Les Métiers du Bâtiment';

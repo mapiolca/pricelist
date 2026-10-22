@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1 — préparée, non publiée — 2026-10-22
+
+- Application des tarifs dégressifs liée au partage natif des prix de vente de Multicompany, sans réglage concurrent : tarifs locaux prioritaires, puis tarifs des entités autorisées par `getEntity('productprice')`. Le seul partage d'un produit/service ne partage plus ses tarifs PriceList.
+- Sans partage des prix de vente, les tarifs étrangers ne peuvent plus modifier une ligne ni déclencher leur contrôle de minimum. La gestion reste dans l'entité propriétaire ; les documents partagés accessibles conservent leurs propres tarifs et leur contexte de coût.
+- Aucune migration SQL ni réactivation nécessaire ; données et réglages conservés. Tests de non-régression et matrice CI ajoutés, avec distinction entre simulations et recette réelle.
+
 ## 2.3.0 — préparée, non publiée
 
 - Ajout de l’onglet de réglages **À propos**, alimenté par le descripteur, après **Compatibilité**.
