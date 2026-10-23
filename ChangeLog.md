@@ -1,12 +1,16 @@
 # Changelog
 
-## 2.3.1 — préparée, non publiée — 2026-10-22
+## 2.3.1 — 2026-10-23
 
+- Correction du contrôle du prix minimum selon le mode natif Produits/Services : niveaux clients, tarifs clients, modes combinés et paliers sélectionnés ; absence de repli sur l'ancien minimum général lorsque le niveau est disponible.
+- Contrôle du prix réellement appliqué après remise à l'ajout, l'édition et l'actualisation des documents commerciaux ; conservation des prix manuels lors d'une remise seule et omission diagnostiquée lorsque le contrôle est impossible.
+- Avertissements précisant les niveaux incompatibles sans bloquer l'enregistrement des tarifs génériques ; vérification définitive avec le client réel.
+- Compatibilité native explicitée : client + niveaux à partir de v21, dates de validité des tarifs clients à partir de v22, minimum nul conservé et paliers étrangers refusés ; aucune migration SQL ni réinitialisation nécessaire.
+- Ajout de scénarios reproductibles utilisant les méthodes natives et d'une matrice CI Dolibarr v20 à v25 alpha ; les simulations sont distinguées des recettes réelles.
 - Application des tarifs dégressifs liée au partage natif des prix de vente de Multicompany, sans réglage concurrent : tarifs locaux prioritaires, puis tarifs des entités autorisées par `getEntity('productprice')`. Le seul partage d'un produit/service ne partage plus ses tarifs PriceList.
 - Sans partage des prix de vente, les tarifs étrangers ne peuvent plus modifier une ligne ni déclencher leur contrôle de minimum. La gestion reste dans l'entité propriétaire ; les documents partagés accessibles conservent leurs propres tarifs et leur contexte de coût.
-- Aucune migration SQL ni réactivation nécessaire ; données et réglages conservés. Tests de non-régression et matrice CI ajoutés, avec distinction entre simulations et recette réelle.
 
-## 2.3.0 — préparée, non publiée
+## 2.3.0 — 2026-09-22
 
 - Ajout de l’onglet de réglages **À propos**, alimenté par le descripteur, après **Compatibilité**.
 - Correction de l’onglet natif **Tarifs dégressifs** sur les sous-pages des produits et services : expression testée avec les évaluateurs Dolibarr 20, 21, 22, 23.0.2 et 24.0.1, droits propres à chaque type et suppression des ajouts de secours. Le contrôle des utilisateurs externes reste dans la page, hors de l’expression évaluée.

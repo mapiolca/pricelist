@@ -242,7 +242,7 @@ class ActionsPriceList
 			return;
 		}
 
-		$this->applyPriceToPostFromPriceList($idprod, $client, $qty, $sourceObject, $line->pa_ht ?? $line->buy_price_ht ?? null);
+		$this->applyPriceToPostFromPriceList($idprod, $client, $qty, $sourceObject, $line->pa_ht ?? $line->buy_price_ht ?? null, $line);
 	}
 
 	/**
@@ -305,7 +305,7 @@ class ActionsPriceList
 			return;
 		}
 
-		$this->applyContractLinePriceToPostFromPriceList($idprod, $client, $qty, $object, $line->pa_ht ?? $line->buy_price_ht ?? null);
+		$this->applyContractLinePriceToPostFromPriceList($idprod, $client, $qty, $object, $line->pa_ht ?? $line->buy_price_ht ?? null, $line);
 	}
 
 	/**
@@ -316,9 +316,10 @@ class ActionsPriceList
 	 * @param mixed   $qty          Quantity
 	 * @param ?object $sourceObject Source object
 	 * @param float|string|null $existingCost Existing line cost on edit
+	 * @param object|null $existingLine Persisted line (submitted values take precedence)
 	 * @return void
 	 */
-	private function applyPriceToPostFromPriceList($idprod, $client, $qty, $sourceObject, $existingCost = null)
+	private function applyPriceToPostFromPriceList($idprod, $client, $qty, $sourceObject, $existingCost = null, $existingLine = null)
 	{
 		global $langs;
 
@@ -327,7 +328,7 @@ class ActionsPriceList
 		}
 
 		$pricelist = new PriceList($this->db);
-		$obj = $pricelist->get_price($idprod, $client, $qty, $sourceObject);
+		$obj = $pricelist->get_price($idprod, $client, $qty, $sourceObject, $this->getSubmittedPriceContext($existingLine));
 		if ($obj === -1 && $pricelist->error) {
 			setEventMessage($langs->trans($pricelist->error), 'errors');
 			return;
@@ -345,9 +346,10 @@ class ActionsPriceList
 	 * @param mixed  $qty    Quantity
 	 * @param object $object Contract object
 	 * @param float|string|null $existingCost Existing line cost on edit
+	 * @param object|null $existingLine Persisted line (submitted values take precedence)
 	 * @return void
 	 */
-	private function applyContractLinePriceToPostFromPriceList($idprod, $client, $qty, $object, $existingCost = null)
+	private function applyContractLinePriceToPostFromPriceList($idprod, $client, $qty, $object, $existingCost = null, $existingLine = null)
 	{
 		global $langs;
 
@@ -356,7 +358,7 @@ class ActionsPriceList
 		}
 
 		$pricelist = new PriceList($this->db);
-		$obj = $pricelist->get_price($idprod, $client, $qty, $object);
+		$obj = $pricelist->get_price($idprod, $client, $qty, $object, $this->getSubmittedPriceContext($existingLine, true));
 		if ($obj === -1 && $pricelist->error) {
 			setEventMessage($langs->trans($pricelist->error), 'errors');
 			return;
@@ -440,7 +442,7 @@ class ActionsPriceList
 				continue;
 			}
 
-			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object, $this->getLineMinimumPriceContext($line));
 			if ($obj === -1 && $pricelist->error) {
 				setEventMessage($langs->trans($pricelist->error), 'errors');
 				continue;
@@ -500,7 +502,7 @@ class ActionsPriceList
 				continue;
 			}
 
-			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object, $this->getLineMinimumPriceContext($line));
 			if ($obj === -1 && $pricelist->error) {
 				setEventMessage($langs->trans($pricelist->error), 'errors');
 				continue;
@@ -560,7 +562,7 @@ class ActionsPriceList
 				continue;
 			}
 
-			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object, $this->getLineMinimumPriceContext($line));
 			if ($obj === -1 && $pricelist->error) {
 				setEventMessage($langs->trans($pricelist->error), 'errors');
 				continue;
@@ -633,7 +635,7 @@ class ActionsPriceList
 				continue;
 			}
 
-			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object);
+			$obj = $pricelist->get_price($line->fk_product, $client, $line->qty, $object, $this->getLineMinimumPriceContext($line));
 			if ($obj === -1 && $pricelist->error) {
 				setEventMessage($langs->trans($pricelist->error), 'errors');
 				continue;
@@ -670,6 +672,47 @@ class ActionsPriceList
 		if ($updatedLines > 0) {
 			setEventMessage($langs->trans('PriceListInsert'));
 		}
+	}
+
+	/**
+	 * Use the actual line price when a rule only changes the discount.
+	 * @param object $line Commercial line
+	 * @return array{unit_price:float|string|null,base_type:string,tva_tx:float|string,remise_percent:float|string}
+	 */
+	private function getLineMinimumPriceContext($line)
+	{
+		return array('unit_price' => $line->subprice ?? $line->price_ht ?? null, 'base_type' => 'HT',
+			'tva_tx' => $line->tva_tx ?? 0, 'remise_percent' => $line->remise_percent ?? 0);
+	}
+
+	/**
+	 * Submitted prices override the persisted value, including an explicit zero.
+	 * @param object|null $line Existing line
+	 * @param bool $contract Contract edit field names
+	 * @return array{unit_price?:float|string|null,base_type?:string,tva_tx?:float|string,remise_percent?:float|string,pqp?:int}
+	 */
+	private function getSubmittedPriceContext($line = null, $contract = false)
+	{
+		$context = is_object($line) ? $this->getLineMinimumPriceContext($line) : array();
+		$htField = $contract && is_object($line) ? 'elprice' : 'price_ht';
+		$discountField = $contract && is_object($line) ? 'elremise_percent' : 'remise_percent';
+		if (GETPOSTISSET($htField) && dol_strlen(GETPOST($htField, 'alphanohtml'))) {
+			$context['unit_price'] = GETPOST($htField, 'alphanohtml');
+			$context['base_type'] = 'HT';
+		} elseif (!$contract && GETPOSTISSET('price_ttc') && dol_strlen(GETPOST('price_ttc', 'alphanohtml'))) {
+			$context['unit_price'] = GETPOST('price_ttc', 'alphanohtml');
+			$context['base_type'] = 'TTC';
+		}
+		if (GETPOSTISSET('tva_tx')) {
+			$context['tva_tx'] = GETPOST('tva_tx', 'alphanohtml');
+		}
+		if (GETPOSTISSET($discountField)) {
+			$context['remise_percent'] = GETPOST($discountField, 'alphanohtml');
+		}
+		if (GETPOSTISSET('pbq')) {
+			$context['pqp'] = GETPOSTINT('pbq');
+		}
+		return $context;
 	}
 
 	/**

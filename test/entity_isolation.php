@@ -61,7 +61,7 @@ $conf->entity = 1;
 check(is_object($isolation->get_price(10, $buyer, 3)), 'owner entity retains its own tariff');
 $conf->entity = 2;
 
-Societe::$data[7] = 1; $buyer->id = 7;
+Societe::$data[7] = array('entity' => 1); $buyer->id = 7;
 Categorie::$customerCategories = array((object) array('id' => 77));
 $targets = array('fk_soc' => null, 'fk_cat' => null);
 if (pricelistIsPropalCategoryAvailable()) { $targets['fk_cat_propal'] = 'propal'; }
@@ -116,7 +116,7 @@ check(is_object($isolation->get_price(10, $buyer, 3, $sharedDocument)), 'shared 
 $scopes['productprice'] = '2';
 check($isolation->get_price(10, $buyer, 3, $document) === 0, 'disabling sale-price sharing immediately isolates tariffs');
 
-$scopes['productprice'] = '1,2'; Societe::$data[7] = 1; $buyer->id = 7;
+$scopes['productprice'] = '1,2'; Societe::$data[7] = array('entity' => 1); $buyer->id = 7;
 Categorie::$customerCategories = array((object) array('id' => 77));
 foreach ($targets as $target => $element) {
 	$isolationDB->target = $target;
@@ -134,3 +134,16 @@ foreach (array('propal' => 'updatePropalLines', 'commande' => 'updateOrderLines'
 	check(count($document->calls) === 1, 'shared sale tariff applied at refresh '.$element);
 }
 check($conf->entity === 2, 'sale-price sharing never switches authenticated entity');
+
+// Both fixes must cooperate in the same lookup, not just in separate suites.
+$settings['PRODUIT_MULTIPRICES'] = 1;
+Product::$data[10] = array('entity' => 1, 'type' => 0, 'price' => 440, 'price_min' => 400,
+	'multiprices' => array(1 => 440, 2 => 500), 'multiprices_min' => array(1 => 275, 2 => 400),
+	'multiprices_ttc' => array(1 => 528, 2 => 600), 'multiprices_min_ttc' => array(1 => 330, 2 => 480),
+	'multiprices_base_type' => array(1 => 'HT', 2 => 'HT'));
+$isolationDB->rulePrice = 350; $isolationDB->ruleCostSource = 'product';
+$buyer->id = 7; Societe::$data[7] = array('entity' => 1, 'price_level' => 1);
+check(is_object($isolation->get_price(10, $buyer, 3, $document)), 'shared sale tariff uses actual Standard minimum 275 instead of general 400');
+Societe::$data[7]['price_level'] = 2;
+check($isolation->get_price(10, $buyer, 3, $document) === -1
+	&& $isolation->error === 'PriceListBelowMinimumPriceNotApplied', 'shared sale tariff still refused for actual client level minimum 400');

@@ -221,23 +221,31 @@ if (!function_exists('pricelist_get_minimum_price_warnings')) {
 			$lineRow->fk_product = (int) $line->product_id;
 			$lineRow->price = $line->price;
 			$lineRow->tx_discount = $line->tx_discount;
-			$violation = $line->getMinimumPriceViolationForRow($lineRow, $soc);
-			if (!is_array($violation)) {
-				continue;
+			if (is_object($soc)) {
+				$violation = $line->getMinimumPriceViolationForRow($lineRow, $soc);
+				$checks = is_array($violation) ? array(array_merge($violation, array('label' => ''))) : array();
+				if ($line->error) {
+					$checks[] = array('label' => '', 'reason' => $line->error);
+				}
+			} elseif ((int) $line->socid > 0) {
+				$checks = array(array('label' => '', 'reason' => 'PriceListMinimumPriceUnavailable'));
+			} else {
+				$checks = $line->getMinimumPriceWarningsForRow($lineRow);
 			}
-
 			$productLabel = '#'.(int) $line->product_id;
 			$product = new Product($db);
 			if ($product->fetch((int) $line->product_id) > 0) {
 				$productLabel = $product->ref;
 			}
-			$warnings[] = $langs->trans(
-				'PriceListMinimumPriceWarningLine',
-				dol_escape_htmltag($productLabel),
-				price($line->from_qty),
-				price($violation['current']),
-				price($violation['minimum'])
-			);
+			foreach ($checks as $check) {
+				$label = $productLabel.($check['label'] !== '' ? ' / '.$check['label'] : '');
+				if (isset($check['reason'])) {
+					$warnings[] = dol_escape_htmltag($label).' : '.$langs->trans($check['reason']);
+				} else {
+					$warnings[] = $langs->trans('PriceListMinimumPriceWarningLine',
+						dol_escape_htmltag($label), price($line->from_qty), price($check['current']), price($check['minimum']));
+				}
+			}
 		}
 
 		return $warnings;

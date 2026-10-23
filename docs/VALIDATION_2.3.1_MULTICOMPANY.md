@@ -35,8 +35,10 @@ et la documentation. Aucun SQL, migration, droit, hook déclaré, Agenda,
 notification, document généré ou cron n'est ajouté ou modifié. Une réactivation
 n'est pas nécessaire. À propos utilise déjà la version du descripteur.
 
-Cette branche est indépendante de la PR #8 sur les modes de prix, encore ouverte
-lors du préflight. Son contenu n'est pas intégré à ce correctif.
+Le correctif de partage a été intégré à `main` par la PR #9, puis réuni aux
+modes de prix dans la PR #8 lors de la résolution des conflits. Le lanceur
+exécute les deux familles de scénarios ; le tableau ci-dessous donne leurs
+résultats combinés après intégration.
 
 Contrat lu dans `class/actions_multicompany.class.php` au commit
 `e29b39060b37b8d70d052337a736cc5e465b3a2e` du module Multicompany : élément
@@ -60,12 +62,12 @@ transactions et règles de partage réelles ne sont pas exécutées.
 
 | Sources natives Dolibarr | Révision figée | Assertions réussies, PHP 8.4.22 |
 |---|---|---:|
-| 20.0.0 | `697bf01970740a3339cd99cf055b4428fc5e051c` | 181 |
-| 21.0.0 | `fd970b582a4d8c5779a2958a4e9f4fce225cf085` | 181 |
-| 22.0.0 | `49b9a6d19f3deb6d410c0e9b3310e95be4ea7710` | 191 |
-| 23.0.2 | `ccef1102e6850b7545be7bad91cf0cc4c74ac6ea` | 196 |
-| 24.0.1 | `b7958385f00a92219f76a4dfea67dae93df97a25` | 196 |
-| 25.0.0-alpha | `d37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b` | 196 |
+| 20.0.0 | `697bf01970740a3339cd99cf055b4428fc5e051c` | 240 |
+| 21.0.0 | `fd970b582a4d8c5779a2958a4e9f4fce225cf085` | 243 |
+| 22.0.0 | `49b9a6d19f3deb6d410c0e9b3310e95be4ea7710` | 257 |
+| 23.0.2 | `ccef1102e6850b7545be7bad91cf0cc4c74ac6ea` | 262 |
+| 24.0.1 | `b7958385f00a92219f76a4dfea67dae93df97a25` | 262 |
+| 25.0.0-alpha | `d37fd9f3128ab8d52bd6399a2fe6ebbe7e65f62b` | 262 |
 
 Les catégories de documents sont testées seulement lorsque leur capacité est
 disponible dans la version simulée. L'alpha v25 ne valide pas une future finale.
@@ -103,7 +105,7 @@ composer validate --strict
 git diff --check
 ```
 
-Les 19 fichiers PHP passent le lint ; Composer et le contrôle du diff passent.
+Les 20 fichiers PHP passent le lint ; Composer et le contrôle du diff passent.
 PHPStan non exécuté : aucun exécutable ni configuration du module disponible.
 Aucun ignore ni baseline ajouté. Aucun essai navigateur ou déploiement effectué.
 
